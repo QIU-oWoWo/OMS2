@@ -91,7 +91,7 @@ export function generateOrders(): OrderDTO[] {
   ] as const;
   const bizTypes = ['REGULAR', 'APPOINTMENT', 'CUSTOM', 'REQUISITION'] as const;
   const urgencies = ['NORMAL', 'URGENT', 'CRITICAL'] as const;
-  const methods = ['DIRECT_SHIP', 'WAREHOUSE_SHIP', 'TRANSFER'] as const;
+  const methods = ['DIRECT_SHIP', 'WAREHOUSE_SHIP'] as const;
   const bases = ['华东基地', '华南基地', '华北基地', '西南基地'];
   const vins = [
     'LSVAU2180N2012345', 'LSVAU2190N2015678', 'LSVAU2200N2018901',
@@ -910,19 +910,21 @@ export const vehicleShippingPlans = (() => {
   return plans;
 })();
 
-// ========== 供应商缺件ETA数据（引用真实订单号） ==========
+// ========== 供应商缺件ETA数据（仅未发货+有缺件的订单） ==========
 
 export const supplierETAData: Record<string, { skuCode: string; skuName: string; shortageQty: number; supplier: string; estimatedArrival: string; reason: string }[]> = {};
 mockOrders.filter((o) => ['PENDING_REVIEW', 'SCHEDULING', 'PICKING', 'READY_TO_SHIP'].includes(o.status)).forEach((order) => {
-  supplierETAData[order.orderNo] = order.items
-    .filter((it) => it.shortageQty > 0 || Math.random() > 0.6)
-    .map((it) => ({
+  const shortageItems = order.items.filter((it) => it.shortageQty > 0);
+  if (shortageItems.length > 0) {
+    order.shortageFlag = true;
+    supplierETAData[order.orderNo] = shortageItems.map((it) => ({
       skuCode: it.skuCode, skuName: it.skuName,
-      shortageQty: it.shortageQty || randomInt(1, 5),
+      shortageQty: it.shortageQty,
       supplier: randomPick(['BOSCH', 'MANN', 'DID', '博世', '全顺', '凯利', '雅迪原厂']),
       estimatedArrival: formatDate(new Date(2026, 6, randomInt(17, 20), randomInt(8, 18))),
       reason: randomPick(['SUPPLIER_PENDING', 'IN_TRANSIT', 'CUSTOMS', 'PRODUCTION']),
     }));
+  }
 });
 
 // ========== 按订单生成操作日志 ==========

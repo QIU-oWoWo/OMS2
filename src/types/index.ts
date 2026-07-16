@@ -2,7 +2,7 @@
 
 export type BizType = 'REGULAR' | 'APPOINTMENT' | 'CUSTOM' | 'CALL_400' | 'REQUISITION';
 export type UrgencyLevel = 'NORMAL' | 'URGENT' | 'CRITICAL';
-export type FulfillMethod = 'DIRECT_SHIP' | 'WAREHOUSE_SHIP' | 'TRANSFER';
+export type FulfillMethod = 'DIRECT_SHIP' | 'WAREHOUSE_SHIP';
 export type OrderStatus =
   | 'PENDING_REVIEW'
   | 'SCHEDULING'
@@ -123,9 +123,8 @@ export const URGENCY_MAP: Record<UrgencyLevel, { label: string; color: string }>
 };
 
 export const FULFILL_METHOD_MAP: Record<FulfillMethod, string> = {
-  DIRECT_SHIP: '直发',
-  WAREHOUSE_SHIP: '仓发',
-  TRANSFER: '调拨',
+  DIRECT_SHIP: '直发（供应商→经销商）',
+  WAREHOUSE_SHIP: '仓发（基地仓→经销商）',
 };
 
 export const EXCEPTION_TYPE_MAP: Record<ExceptionType, { label: string; color: string }> = {

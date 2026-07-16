@@ -11,6 +11,7 @@ import CustomOrderList from './pages/orders/CustomOrderList';
 import CustomOrderDetail from './pages/orders/CustomOrderDetail';
 import Call400List from './pages/orders/Call400List';
 import VehicleShipping from './pages/orders/VehicleShipping';
+import InvoiceList from './pages/orders/InvoiceList';
 import ExceptionList from './pages/exceptions/ExceptionList';
 import LogisticsList from './pages/exceptions/LogisticsList';
 import LogisticsDetail from './pages/exceptions/LogisticsDetail';
@@ -43,7 +44,7 @@ function App() {
               <Route path="/orders/custom/:customNo" element={<CustomOrderDetail />} />
               <Route path="/orders/call400" element={<Call400List />} />
               <Route path="/orders/vehicle-shipping" element={<VehicleShipping />} />
-              <Route path="/orders/invoices" element={<PlaceholderPage title="开票管理" />} />
+              <Route path="/orders/invoices" element={<InvoiceList />} />
               {/* 异常中心 */}
               <Route path="/exceptions" element={<ExceptionList />} />
               <Route path="/exceptions/returns" element={<PlaceholderPage title="退换货管理" />} />

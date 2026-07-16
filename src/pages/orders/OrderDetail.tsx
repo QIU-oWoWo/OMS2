@@ -133,8 +133,15 @@ export default function OrderDetail() {
               )}
               <Divider style={{ margin: '12px 0' }} />
               <Row gutter={16}>
-                <Col span={12}><Statistic title={tracking?.trackStatus === 'DELIVERED' ? '签收时间' : '预计到货时间'} value={tracking?.trackStatus === 'DELIVERED' ? (tracking?.nodes[tracking.nodes.length - 1]?.time || '').replace('T', ' ').substring(0, 10) : '—'} prefix={<ClockCircleOutlined />} valueStyle={{ fontSize: 18 }} /></Col>
-                <Col span={12}><Statistic title="发货时间" value={order.createTime.replace('T', ' ').substring(0, 16).split('T')[0]} prefix={<CheckCircleOutlined />} valueStyle={{ fontSize: 18, color: '#16A34A' }} /></Col>
+                <Col span={8}><Statistic title="发货时间" value={order.createTime.replace('T', ' ').substring(0, 10)} prefix={<CheckCircleOutlined />} valueStyle={{ fontSize: 16, color: '#16A34A' }} /></Col>
+                <Col span={8}>
+                  {tracking?.trackStatus === 'DELIVERED' ? (
+                    <Statistic title="签收时间" value={(tracking?.nodes[tracking.nodes.length - 1]?.time || '').replace('T', ' ').substring(0, 10)} prefix={<CheckCircleOutlined />} valueStyle={{ fontSize: 16, color: '#16A34A' }} />
+                  ) : (
+                    <Statistic title="预计到货时间" value="—" prefix={<ClockCircleOutlined />} valueStyle={{ fontSize: 16, color: '#8C8C8C' }} />
+                  )}
+                </Col>
+                <Col span={8}><Statistic title="发货方式" value={shippingMethod === 'WITH_VEHICLE' ? '随车' : '非随'} prefix={shippingMethod === 'WITH_VEHICLE' ? <CarOutlined /> : <InboxOutlined />} valueStyle={{ fontSize: 16 }} /></Col>
               </Row>
             </Card>
           )}
