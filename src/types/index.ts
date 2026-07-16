@@ -351,3 +351,160 @@ export interface InventoryShareDTO {
   updateTime: string;
   remark: string;
 }
+
+// ========== 数据分析相关类型 ==========
+
+export interface TimelinessData {
+  stage: string;
+  hours: number;
+  base: string;
+}
+
+export interface WarrantyClaim {
+  skuCode: string;
+  skuName: string;
+  claimCount: number;
+  claimAmount: number;
+  claimRate: number;
+  supplier: string;
+}
+
+export interface ExportTask {
+  taskNo: string;
+  taskName: string;
+  format: 'EXCEL' | 'PDF';
+  status: 'QUEUED' | 'GENERATING' | 'COMPLETED' | 'FAILED';
+  createTime: string;
+  expireTime: string;
+  downloadUrl?: string;
+  rowCount: number;
+}
+
+// ========== 对账相关类型 ==========
+
+export type ReconStatus = 'PENDING_CONFIRM' | 'CONFIRMED' | 'HAS_DIFFERENCE' | 'CLOSED';
+
+export const RECON_STATUS_MAP: Record<ReconStatus, { label: string; color: string }> = {
+  PENDING_CONFIRM: { label: '待确认', color: '#F59E0B' },
+  CONFIRMED: { label: '已确认', color: '#16A34A' },
+  HAS_DIFFERENCE: { label: '有差异', color: '#E11D48' },
+  CLOSED: { label: '已关闭', color: '#8C8C8C' },
+};
+
+export interface ReconciliationDTO {
+  reconNo: string;
+  dealerId: string;
+  dealerName: string;
+  reconPeriod: string;
+  receivableAmount: number;
+  receivedAmount: number;
+  diffAmount: number;
+  orderCount: number;
+  diffOrderCount: number;
+  reconStatus: ReconStatus;
+  createTime: string;
+  items: { orderNo: string; orderAmount: number; paidAmount: number; diffAmount: number; hasDifference: boolean }[];
+}
+
+export interface DifferenceItem {
+  diffNo: string;
+  reconNo: string;
+  orderNo: string;
+  dealerName: string;
+  diffReason: string;
+  diffAmount: number;
+  processStatus: 'PENDING' | 'ADJUSTED' | 'SUPPLEMENT' | 'WRITE_OFF' | 'SUSPENDED';
+  handler: string;
+  createTime: string;
+}
+
+export interface PaymentRecord {
+  paymentNo: string;
+  dealerName: string;
+  paymentAmount: number;
+  verifiedAmount: number;
+  remainAmount: number;
+  paymentDate: string;
+  bankRefNo: string;
+  status: 'UNVERIFIED' | 'PARTIAL' | 'VERIFIED';
+}
+
+// ========== 系统设置相关类型 ==========
+
+export interface PriceRule {
+  ruleNo: string;
+  dealerGrade: string;
+  discountRate: number;
+  region: string;
+  effectiveDate: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'PENDING';
+}
+
+export interface Promotion {
+  promoNo: string;
+  promoName: string;
+  type: 'FULL_REDUCTION' | 'DISCOUNT' | 'BUY_GIFT' | 'COMBO';
+  startDate: string;
+  endDate: string;
+  status: 'ACTIVE' | 'EXPIRED' | 'DRAFT';
+  applicableSkus: string[];
+}
+
+export interface BaseConfig {
+  baseCode: string;
+  baseName: string;
+  region: string;
+  manager: string;
+  phone: string;
+  warehouseCount: number;
+  slaHours: number;
+  status: 'ACTIVE' | 'INACTIVE';
+}
+
+export interface LogisticsProvider {
+  providerCode: string;
+  providerName: string;
+  contact: string;
+  phone: string;
+  serviceArea: string;
+  apiStatus: 'CONNECTED' | 'DISCONNECTED' | 'ERROR';
+  status: 'ACTIVE' | 'INACTIVE';
+}
+
+export interface SystemUser {
+  userId: string;
+  username: string;
+  realName: string;
+  role: string;
+  department: string;
+  status: 'ENABLED' | 'DISABLED';
+  lastLoginTime: string;
+}
+
+export interface Role {
+  roleId: string;
+  roleName: string;
+  userCount: number;
+  permissions: string[];
+  dataScope: string;
+}
+
+export interface AuditLog {
+  logId: string;
+  operator: string;
+  module: string;
+  actionType: string;
+  target: string;
+  changes: string;
+  ipAddress: string;
+  createTime: string;
+}
+
+export interface SystemParam {
+  paramKey: string;
+  paramName: string;
+  paramValue: string | number | boolean;
+  defaultValue: string;
+  description: string;
+  type: 'SWITCH' | 'NUMBER' | 'TEXT';
+}

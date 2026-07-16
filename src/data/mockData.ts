@@ -542,3 +542,194 @@ export const dealerMonthlyStats = [
   { dealer: '成都雅迪体验店', orders: 125, amount: 242600, achievement: 94.1 },
   { dealer: '广州雅迪旗舰店', orders: 138, amount: 271300, achievement: 95.8 },
 ];
+
+// ========== 数据分析 - 时效看板数据 ==========
+
+export const timelinessCards = {
+  todayAchievement: { value: 94.2, trend: 2.1 },
+  avgFulfillHours: { value: 36.5, trend: -5.2 },
+};
+
+export const stageTimeData = [
+  { stage: '审核', 华东基地: 2.1, 华南基地: 2.5, 华北基地: 3.0, 西南基地: 2.8 },
+  { stage: '排单', 华东基地: 4.2, 华南基地: 5.1, 华北基地: 4.8, 西南基地: 5.5 },
+  { stage: '拣货', 华东基地: 8.5, 华南基地: 9.2, 华北基地: 10.1, 西南基地: 9.8 },
+  { stage: '发货', 华东基地: 6.3, 华南基地: 7.0, 华北基地: 7.5, 西南基地: 8.2 },
+  { stage: '运输', 华东基地: 18.2, 华南基地: 22.5, 华北基地: 20.1, 西南基地: 25.3 },
+  { stage: '签收', 华东基地: 3.2, 华南基地: 3.8, 华北基地: 4.0, 西南基地: 4.5 },
+];
+
+export const exceptionTop10 = [
+  { type: '缺货', count: 28 }, { type: '破损', count: 22 }, { type: '超时', count: 18 },
+  { type: '地址异常', count: 15 }, { type: '拒收', count: 12 }, { type: '错发', count: 9 },
+  { type: '其他', count: 6 },
+];
+
+export const baseRanking = [
+  { base: '华东基地', achievement: 96.2, avgHours: 34.1, rank: 1 },
+  { base: '华南基地', achievement: 94.5, avgHours: 37.8, rank: 2 },
+  { base: '华北基地', achievement: 92.1, avgHours: 40.3, rank: 3 },
+  { base: '西南基地', achievement: 89.8, avgHours: 45.6, rank: 4 },
+];
+
+export const satisfactionTrend = [
+  { month: '1月', score: 4.2 }, { month: '2月', score: 4.3 }, { month: '3月', score: 4.1 },
+  { month: '4月', score: 4.4 }, { month: '5月', score: 4.5 }, { month: '6月', score: 4.3 },
+  { month: '7月', score: 4.6 },
+];
+
+// ========== 数据分析 - 达成率报表数据 ==========
+
+export const completionRateData = [
+  { base: '华东基地', totalOrders: 342, achievedOrders: 329, rate: 96.2, overtimeOrders: 13, avgOvertimeHours: 8.5 },
+  { base: '华南基地', totalOrders: 298, achievedOrders: 282, rate: 94.6, overtimeOrders: 16, avgOvertimeHours: 10.2 },
+  { base: '华北基地', totalOrders: 256, achievedOrders: 236, rate: 92.1, overtimeOrders: 20, avgOvertimeHours: 12.8 },
+  { base: '西南基地', totalOrders: 215, achievedOrders: 193, rate: 89.8, overtimeOrders: 22, avgOvertimeHours: 15.3 },
+];
+
+// ========== 数据分析 - 三包分析数据 ==========
+
+export const warrantyCards = { claimRate: 3.2, totalClaims: 47, totalAmount: 286500 };
+
+export const warrantyMonthlyTrend = [
+  { month: '1月', amount: 32000 }, { month: '2月', amount: 28500 }, { month: '3月', amount: 41000 },
+  { month: '4月', amount: 38000 }, { month: '5月', amount: 45000 }, { month: '6月', amount: 52000 },
+  { month: '7月', amount: 50000 },
+];
+
+export const topClaimSkus = Array.from({ length: 20 }, (_, i) => ({
+  skuCode: `YD-${randomPick(['BP', 'FL', 'CH', 'MT', 'CT', 'LT'])}-00${i + 1}`,
+  skuName: randomPick(['前刹车片总成', '空气滤芯', '传动链条', '轮毂电机', '控制器', 'LED大灯']),
+  claimCount: randomInt(3, 25),
+  claimAmount: randomInt(5000, 80000),
+  claimRate: Math.round(randomInt(15, 80) / 10 * 10) / 10,
+  supplier: randomPick(['BOSCH', 'MANN', 'DID', '博世', '全顺', '凯利']),
+}));
+
+export const supplierQualityRanking = [
+  { supplier: 'BOSCH', totalSold: 12500, claims: 25, claimRate: 0.2, rank: 1 },
+  { supplier: 'MANN', totalSold: 8900, claims: 22, claimRate: 0.25, rank: 2 },
+  { supplier: 'DID', totalSold: 7600, claims: 23, claimRate: 0.3, rank: 3 },
+  { supplier: '博世', totalSold: 10200, claims: 38, claimRate: 0.37, rank: 4 },
+  { supplier: '全顺', totalSold: 6800, claims: 28, claimRate: 0.41, rank: 5 },
+  { supplier: '凯利', totalSold: 5400, claims: 25, claimRate: 0.46, rank: 6 },
+  { supplier: '雅迪原厂', totalSold: 15200, claims: 72, claimRate: 0.47, rank: 7 },
+  { supplier: '欧司朗', totalSold: 4200, claims: 22, claimRate: 0.52, rank: 8 },
+];
+
+// ========== 数据分析 - 导出中心数据 ==========
+
+export const exportTasks = [
+  { taskNo: 'EXP-001', taskName: '订单明细导出_202607', format: 'EXCEL' as const, status: 'COMPLETED' as const, createTime: '2026-07-16T10:30:00+08:00', expireTime: '2026-07-23T10:30:00+08:00', downloadUrl: '#', rowCount: 15420 },
+  { taskNo: 'EXP-002', taskName: '达成率报表_202607', format: 'EXCEL' as const, status: 'GENERATING' as const, createTime: '2026-07-16T11:00:00+08:00', expireTime: '2026-07-23T11:00:00+08:00', rowCount: 8500 },
+  { taskNo: 'EXP-003', taskName: '三包索赔明细_2026Q2', format: 'PDF' as const, status: 'QUEUED' as const, createTime: '2026-07-16T11:15:00+08:00', expireTime: '2026-07-23T11:15:00+08:00', rowCount: 3200 },
+  { taskNo: 'EXP-004', taskName: '经销商月度对账_202606', format: 'EXCEL' as const, status: 'FAILED' as const, createTime: '2026-07-15T09:00:00+08:00', expireTime: '2026-07-22T09:00:00+08:00', rowCount: 6800 },
+  { taskNo: 'EXP-005', taskName: '库存周转报表_202607', format: 'EXCEL' as const, status: 'COMPLETED' as const, createTime: '2026-07-14T14:00:00+08:00', expireTime: '2026-07-21T14:00:00+08:00', downloadUrl: '#', rowCount: 9200 },
+];
+
+// ========== 对账中心数据 ==========
+
+export const reconciliationList = [
+  { reconNo: 'RCN202607001', dealerId: 'DLR-001', dealerName: '杭州雅迪旗舰店', reconPeriod: '2026-07', receivableAmount: 285600, receivedAmount: 280500, diffAmount: 5100, orderCount: 145, diffOrderCount: 3, reconStatus: 'HAS_DIFFERENCE' as ReconStatus, createTime: '2026-07-16T08:00:00+08:00', items: [{ orderNo: 'OMS2026070100001', orderAmount: 3200, paidAmount: 3000, diffAmount: 200, hasDifference: true }, { orderNo: 'OMS2026070100002', orderAmount: 1800, paidAmount: 1800, diffAmount: 0, hasDifference: false }] },
+  { reconNo: 'RCN202607002', dealerId: 'DLR-002', dealerName: '南京雅迪体验中心', reconPeriod: '2026-07', receivableAmount: 258400, receivedAmount: 258400, diffAmount: 0, orderCount: 132, diffOrderCount: 0, reconStatus: 'CONFIRMED' as ReconStatus, createTime: '2026-07-15T16:00:00+08:00', items: [] },
+  { reconNo: 'RCN202607003', dealerId: 'DLR-003', dealerName: '合肥雅迪专卖店', reconPeriod: '2026-07', receivableAmount: 221500, receivedAmount: 218200, diffAmount: 3300, orderCount: 118, diffOrderCount: 2, reconStatus: 'PENDING_CONFIRM' as ReconStatus, createTime: '2026-07-16T09:30:00+08:00', items: [] },
+  { reconNo: 'RCN202606001', dealerId: 'DLR-001', dealerName: '杭州雅迪旗舰店', reconPeriod: '2026-06', receivableAmount: 310200, receivedAmount: 310200, diffAmount: 0, orderCount: 158, diffOrderCount: 0, reconStatus: 'CLOSED' as ReconStatus, createTime: '2026-07-01T10:00:00+08:00', items: [] },
+  { reconNo: 'RCN202606002', dealerId: 'DLR-004', dealerName: '郑州雅迪旗舰店', reconPeriod: '2026-06', receivableAmount: 302100, receivedAmount: 295000, diffAmount: 7100, orderCount: 156, diffOrderCount: 5, reconStatus: 'HAS_DIFFERENCE' as ReconStatus, createTime: '2026-07-02T14:00:00+08:00', items: [] },
+];
+
+export const differenceList = [
+  { diffNo: 'DIF-001', reconNo: 'RCN202607001', orderNo: 'OMS2026070100001', dealerName: '杭州雅迪旗舰店', diffReason: '退货未扣除', diffAmount: 200, processStatus: 'PENDING' as const, handler: '张建国', createTime: '2026-07-16T10:00:00+08:00' },
+  { diffNo: 'DIF-002', reconNo: 'RCN202607001', orderNo: 'OMS2026070100003', dealerName: '杭州雅迪旗舰店', diffReason: '价格差异', diffAmount: 4900, processStatus: 'ADJUSTED' as const, handler: '赵志强', createTime: '2026-07-16T09:00:00+08:00' },
+  { diffNo: 'DIF-003', reconNo: 'RCN202606002', orderNo: 'OMS2026060100012', dealerName: '郑州雅迪旗舰店', diffReason: '漏单', diffAmount: 7100, processStatus: 'SUPPLEMENT' as const, handler: '王丽华', createTime: '2026-07-03T11:00:00+08:00' },
+  { diffNo: 'DIF-004', reconNo: 'RCN202607003', orderNo: 'OMS2026070500008', dealerName: '合肥雅迪专卖店', diffReason: '价格差异', diffAmount: 3300, processStatus: 'PENDING' as const, handler: '张建国', createTime: '2026-07-16T11:30:00+08:00' },
+];
+
+export const paymentRecords = [
+  { paymentNo: 'PAY-001', dealerName: '杭州雅迪旗舰店', paymentAmount: 150000, verifiedAmount: 120000, remainAmount: 30000, paymentDate: '2026-07-15', bankRefNo: 'BANK20260715001', status: 'PARTIAL' as const },
+  { paymentNo: 'PAY-002', dealerName: '南京雅迪体验中心', paymentAmount: 258400, verifiedAmount: 258400, remainAmount: 0, paymentDate: '2026-07-14', bankRefNo: 'BANK20260714002', status: 'VERIFIED' as const },
+  { paymentNo: 'PAY-003', dealerName: '郑州雅迪旗舰店', paymentAmount: 200000, verifiedAmount: 0, remainAmount: 200000, paymentDate: '2026-07-16', bankRefNo: 'BANK20260716003', status: 'UNVERIFIED' as const },
+  { paymentNo: 'PAY-004', dealerName: '武汉雅迪服务中心', paymentAmount: 186200, verifiedAmount: 150000, remainAmount: 36200, paymentDate: '2026-07-13', bankRefNo: 'BANK20260713004', status: 'PARTIAL' as const },
+];
+
+export const agingData = [
+  { dealer: '杭州雅迪旗舰店', within30: 280500, days30to60: 5100, days60to90: 0, over90: 0 },
+  { dealer: '郑州雅迪旗舰店', within30: 250000, days30to60: 45000, days60to90: 7100, over90: 0 },
+  { dealer: '武汉雅迪服务中心', within30: 150000, days30to60: 30000, days60to90: 6200, over90: 0 },
+  { dealer: '长沙雅迪旗舰店', within30: 180000, days30to60: 28000, days60to90: 7800, over90: 0 },
+];
+
+export const paymentTrend = [
+  { month: '1月', amount: 820000 }, { month: '2月', amount: 760000 }, { month: '3月', amount: 910000 },
+  { month: '4月', amount: 880000 }, { month: '5月', amount: 950000 }, { month: '6月', amount: 1020000 },
+  { month: '7月', amount: 980000 },
+];
+
+// ========== 系统设置数据 ==========
+
+export const priceRules = [
+  { ruleNo: 'PRC-001', dealerGrade: 'A级', discountRate: 0.85, region: '全国', effectiveDate: '2026-07-01', status: 'ACTIVE' as const },
+  { ruleNo: 'PRC-002', dealerGrade: 'B级', discountRate: 0.90, region: '全国', effectiveDate: '2026-07-01', status: 'ACTIVE' as const },
+  { ruleNo: 'PRC-003', dealerGrade: 'C级', discountRate: 0.95, region: '全国', effectiveDate: '2026-07-01', status: 'ACTIVE' as const },
+  { ruleNo: 'PRC-004', dealerGrade: 'D级', discountRate: 0.98, region: '全国', effectiveDate: '2026-07-01', status: 'ACTIVE' as const },
+  { ruleNo: 'PRC-005', dealerGrade: 'A级', discountRate: 0.80, region: '华东', effectiveDate: '2026-08-01', status: 'PENDING' as const },
+];
+
+export const promotions: Promotion[] = [
+  { promoNo: 'PROMO-001', promoName: '夏日配件节', type: 'FULL_REDUCTION', startDate: '2026-07-01', endDate: '2026-08-31', status: 'ACTIVE', applicableSkus: ['YD-BP-001', 'YD-FL-001', 'YD-CH-001'] },
+  { promoNo: 'PROMO-002', promoName: '新店开业特惠', type: 'DISCOUNT', startDate: '2026-07-15', endDate: '2026-08-15', status: 'ACTIVE', applicableSkus: ['YD-BT-002', 'YD-MT-002'] },
+  { promoNo: 'PROMO-003', promoName: '电池以旧换新', type: 'BUY_GIFT', startDate: '2026-08-01', endDate: '2026-09-30', status: 'DRAFT', applicableSkus: ['YD-BT-001', 'YD-BT-002'] },
+  { promoNo: 'PROMO-004', promoName: '春季保养套餐', type: 'COMBO', startDate: '2026-03-01', endDate: '2026-05-31', status: 'EXPIRED', applicableSkus: ['YD-FL-001', 'YD-FL-002', 'YD-BP-001'] },
+];
+
+export const baseConfigs: BaseConfig[] = [
+  { baseCode: 'BASE-EAST', baseName: '华东基地', region: '华东', manager: '周明', phone: '13800001001', warehouseCount: 3, slaHours: 48, status: 'ACTIVE' },
+  { baseCode: 'BASE-SOUTH', baseName: '华南基地', region: '华南', manager: '吴强', phone: '13800001002', warehouseCount: 2, slaHours: 72, status: 'ACTIVE' },
+  { baseCode: 'BASE-NORTH', baseName: '华北基地', region: '华北', manager: '郑军', phone: '13800001003', warehouseCount: 2, slaHours: 72, status: 'ACTIVE' },
+  { baseCode: 'BASE-WEST', baseName: '西南基地', region: '西南', manager: '冯磊', phone: '13800001004', warehouseCount: 1, slaHours: 96, status: 'ACTIVE' },
+];
+
+export const logisticsProviders: LogisticsProvider[] = [
+  { providerCode: 'LOG-SF', providerName: '顺丰速运', contact: '王经理', phone: '95338', serviceArea: '全国', apiStatus: 'CONNECTED', status: 'ACTIVE' },
+  { providerCode: 'LOG-JD', providerName: '京东物流', contact: '李经理', phone: '950616', serviceArea: '全国', apiStatus: 'CONNECTED', status: 'ACTIVE' },
+  { providerCode: 'LOG-DB', providerName: '德邦快递', contact: '赵经理', phone: '95353', serviceArea: '全国', apiStatus: 'CONNECTED', status: 'ACTIVE' },
+  { providerCode: 'LOG-ZT', providerName: '中通快递', contact: '陈经理', phone: '95311', serviceArea: '全国', apiStatus: 'DISCONNECTED', status: 'ACTIVE' },
+  { providerCode: 'LOG-YT', providerName: '圆通速递', contact: '林经理', phone: '95554', serviceArea: '华东/华南', apiStatus: 'ERROR', status: 'ACTIVE' },
+];
+
+export const systemUsers: SystemUser[] = [
+  { userId: 'U-001', username: 'zhangjianguo', realName: '张建国', role: '运营主管', department: '运营部', status: 'ENABLED', lastLoginTime: '2026-07-16T09:00:00+08:00' },
+  { userId: 'U-002', username: 'liminghui', realName: '李明辉', role: '仓管员', department: '仓储部', status: 'ENABLED', lastLoginTime: '2026-07-16T08:30:00+08:00' },
+  { userId: 'U-003', username: 'wanglihua', realName: '王丽华', role: '客服专员', department: '客服部', status: 'ENABLED', lastLoginTime: '2026-07-16T10:00:00+08:00' },
+  { userId: 'U-004', username: 'zhaozhiqiang', realName: '赵志强', role: '运营专员', department: '运营部', status: 'ENABLED', lastLoginTime: '2026-07-15T17:00:00+08:00' },
+  { userId: 'U-005', username: 'chenxiaofang', realName: '陈晓芳', role: '仓管员', department: '仓储部', status: 'DISABLED', lastLoginTime: '2026-07-01T12:00:00+08:00' },
+];
+
+export const roles: Role[] = [
+  { roleId: 'R-001', roleName: '运营主管', userCount: 3, permissions: ['dashboard:view', 'orders:*', 'exceptions:*', 'products:*', 'analytics:*', 'reconciliation:*', 'settings:view'], dataScope: '全部' },
+  { roleId: 'R-002', roleName: '仓管员', userCount: 8, permissions: ['dashboard:view', 'orders:view', 'exceptions:view', 'exceptions:handle', 'products:view'], dataScope: '所属基地' },
+  { roleId: 'R-003', roleName: '客服专员', userCount: 5, permissions: ['orders:view', 'orders:call400', 'exceptions:view'], dataScope: '全部' },
+  { roleId: 'R-004', roleName: '数据分析师', userCount: 2, permissions: ['dashboard:view', 'analytics:*'], dataScope: '全部' },
+  { roleId: 'R-005', roleName: '系统管理员', userCount: 1, permissions: ['*'], dataScope: '全部' },
+];
+
+export const auditLogs: AuditLog[] = Array.from({ length: 10 }, (_, i) => ({
+  logId: `LOG-${String(i + 1).padStart(4, '0')}`,
+  operator: randomPick(['张建国', '李明辉', '王丽华', '赵志强', '系统']),
+  module: randomPick(['订单管理', '异常中心', '商品管理', '系统设置', '对账中心']),
+  actionType: randomPick(['新增', '编辑', '删除', '导出', '审批', '登录']),
+  target: randomPick(['OMS2026070100001', 'YD-BP-001', '用户-张建国', '价格策略PRC-001', '角色-运营主管']),
+  changes: JSON.stringify({ before: { status: 'PENDING' }, after: { status: 'APPROVED' } }),
+  ipAddress: `192.168.${randomInt(1, 255)}.${randomInt(1, 255)}`,
+  createTime: formatDate(new Date(2026, 6, 16, randomInt(8, 17), randomInt(0, 59))),
+}));
+
+export const systemParams = [
+  { paramKey: 'autoAudit', paramName: '订单自动审核', paramValue: false, defaultValue: '关闭', description: '满足条件的订单自动通过审核', type: 'SWITCH' as const },
+  { paramKey: 'autoEscalate', paramName: '异常自动升级', paramValue: true, defaultValue: '开启', description: '超时未处理的异常自动升级', type: 'SWITCH' as const },
+  { paramKey: 'invoiceDelay', paramName: '开票延迟天数', paramValue: 3, defaultValue: '3', description: '签收后N天自动开票', type: 'NUMBER' as const },
+  { paramKey: 'appointRemind', paramName: '预约到期提醒', paramValue: 3, defaultValue: '3', description: '提前N天发送提醒', type: 'NUMBER' as const },
+  { paramKey: 'pageSize', paramName: '表格默认每页条数', paramValue: 20, defaultValue: '20', description: '列表页默认分页大小', type: 'NUMBER' as const },
+  { paramKey: 'exportLimit', paramName: '数据导出上限', paramValue: 50000, defaultValue: '50000', description: '单次导出最大行数', type: 'NUMBER' as const },
+  { paramKey: 'diffThreshold', paramName: '差异审批阈值', paramValue: 5000, defaultValue: '5000', description: '差异金额超过此值需审批', type: 'NUMBER' as const },
+  { paramKey: 'shareFeeRate', paramName: '库存共享服务费率', paramValue: 2, defaultValue: '2', description: '共享金额的服务费百分比', type: 'NUMBER' as const },
+];

@@ -35,6 +35,14 @@ import {
   EnvironmentOutlined,
   CheckSquareOutlined,
   SwapOutlined,
+  ClockCircleOutlined,
+  TrophyOutlined,
+  SafetyCertificateOutlined,
+  DownloadOutlined,
+  AuditOutlined,
+  WalletOutlined,
+  CreditCardOutlined,
+  PieChartOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 
@@ -82,14 +90,26 @@ const menuItems: MenuItem[] = [
     ],
   },
   {
-    key: '/analytics',
+    key: 'analytics',
     icon: <BarChartOutlined />,
     label: '数据分析',
+    children: [
+      { key: '/analytics/timeliness', icon: <ClockCircleOutlined />, label: '时效看板' },
+      { key: '/analytics/completion-rate', icon: <TrophyOutlined />, label: '达成率报表' },
+      { key: '/analytics/warranty', icon: <SafetyCertificateOutlined />, label: '三包分析' },
+      { key: '/analytics/export-center', icon: <DownloadOutlined />, label: '导出中心' },
+    ],
   },
   {
-    key: '/reconciliation',
+    key: 'reconciliation',
     icon: <DollarOutlined />,
     label: '对账中心',
+    children: [
+      { key: '/reconciliation', icon: <AuditOutlined />, label: '对账单管理' },
+      { key: '/reconciliation/differences', icon: <WarningOutlined />, label: '差异处理' },
+      { key: '/reconciliation/payments', icon: <CreditCardOutlined />, label: '回款核销' },
+      { key: '/reconciliation/reports', icon: <PieChartOutlined />, label: '结算报表' },
+    ],
   },
   {
     key: '/settings',

@@ -16,6 +16,15 @@ import LogisticsDetail from './pages/exceptions/LogisticsDetail';
 import ProductList from './pages/products/ProductList';
 import ProductEdit from './pages/products/ProductEdit';
 import InventoryShare from './pages/products/InventoryShare';
+import AnalyticsTimeliness from './pages/analytics/AnalyticsTimeliness';
+import AnalyticsCompletionRate from './pages/analytics/AnalyticsCompletionRate';
+import AnalyticsWarranty from './pages/analytics/AnalyticsWarranty';
+import ExportCenter from './pages/analytics/ExportCenter';
+import ReconciliationList from './pages/reconciliation/ReconciliationList';
+import DifferenceHandle from './pages/reconciliation/DifferenceHandle';
+import PaymentVerification from './pages/reconciliation/PaymentVerification';
+import ReconciliationReports from './pages/reconciliation/ReconciliationReports';
+import SettingsHub from './pages/settings/SettingsHub';
 
 function App() {
   return (
@@ -44,10 +53,18 @@ function App() {
               <Route path="/products/new" element={<ProductEdit />} />
               <Route path="/products/inventory-share" element={<InventoryShare />} />
               <Route path="/products/:skuCode" element={<ProductEdit />} />
-              {/* 其他 */}
-              <Route path="/analytics" element={<PlaceholderPage title="数据分析" />} />
-              <Route path="/reconciliation" element={<PlaceholderPage title="对账中心" />} />
-              <Route path="/settings" element={<PlaceholderPage title="系统设置" />} />
+              {/* 数据分析 */}
+              <Route path="/analytics/timeliness" element={<AnalyticsTimeliness />} />
+              <Route path="/analytics/completion-rate" element={<AnalyticsCompletionRate />} />
+              <Route path="/analytics/warranty" element={<AnalyticsWarranty />} />
+              <Route path="/analytics/export-center" element={<ExportCenter />} />
+              {/* 对账中心 */}
+              <Route path="/reconciliation" element={<ReconciliationList />} />
+              <Route path="/reconciliation/differences" element={<DifferenceHandle />} />
+              <Route path="/reconciliation/payments" element={<PaymentVerification />} />
+              <Route path="/reconciliation/reports" element={<ReconciliationReports />} />
+              {/* 系统设置 */}
+              <Route path="/settings" element={<SettingsHub />} />
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Route>
@@ -60,14 +77,7 @@ function App() {
 
 function PlaceholderPage({ title }: { title: string }) {
   return (
-    <div
-      style={{
-        background: '#FFFFFF',
-        borderRadius: 8,
-        padding: '80px 24px',
-        textAlign: 'center',
-      }}
-    >
+    <div style={{ background: '#FFFFFF', borderRadius: 8, padding: '80px 24px', textAlign: 'center' }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>🚧</div>
       <h2 style={{ color: '#595959', marginBottom: 8 }}>{title}</h2>
       <p style={{ color: '#8C8C8C' }}>此模块正在开发中，敬请期待...</p>
