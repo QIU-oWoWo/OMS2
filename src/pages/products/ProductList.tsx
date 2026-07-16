@@ -23,7 +23,7 @@ const ALL_COLS = [
   { key: 'categoryPath', title: '商品分类' }, { key: 'specification', title: '规格型号' },
   { key: 'unit', title: '单位' }, { key: 'basePrice', title: '基准价' },
   { key: 'baseSource', title: '基地来源' }, { key: 'vehicleModelCount', title: '适配车型数' },
-  { key: 'status', title: '状态' }, { key: 'updateTime', title: '更新时间' },
+  { key: 'status', title: '状态' }, { key: 'tags', title: '标签' }, { key: 'updateTime', title: '更新时间' },
 ];
 
 const RULES = [
