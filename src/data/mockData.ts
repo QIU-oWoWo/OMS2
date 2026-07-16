@@ -863,3 +863,31 @@ export const systemParams = [
   { paramKey: 'diffThreshold', paramName: '差异审批阈值', paramValue: 5000, defaultValue: '5000', description: '差异金额超过此值需审批', type: 'NUMBER' as const },
   { paramKey: 'shareFeeRate', paramName: '库存共享服务费率', paramValue: 2, defaultValue: '2', description: '共享金额的服务费百分比', type: 'NUMBER' as const },
 ];
+
+// ========== 整车发货计划数据 ==========
+
+export const vehicleShippingPlans = [
+  { planNo: 'VSP-20260701', vehicleModel: '雅迪冠能DE8', vehicleCount: 18, dealerName: '杭州雅迪旗舰店', dealerId: 'DLR-001', plannedShipDate: '2026-07-18', actualShipDate: undefined, route: '华东线-沪杭段', driver: '王建国', matchedOrders: ['OMS2026070100001', 'OMS2026070300003'], remainingCapacity: 8, status: 'PLANNED' as const },
+  { planNo: 'VSP-20260702', vehicleModel: '雅迪冠能DE3', vehicleCount: 12, dealerName: '南京雅迪体验中心', dealerId: 'DLR-002', plannedShipDate: '2026-07-17', actualShipDate: '2026-07-17', route: '华东线-宁镇段', driver: '李强', matchedOrders: ['OMS2026070200005'], remainingCapacity: 5, status: 'IN_TRANSIT' as const },
+  { planNo: 'VSP-20260703', vehicleModel: '雅迪DE8+冠能混合', vehicleCount: 22, dealerName: '合肥雅迪专卖店', dealerId: 'DLR-003', plannedShipDate: '2026-07-19', actualShipDate: undefined, route: '华东线-皖中段', driver: '张明', matchedOrders: ['OMS2026070400007', 'OMS2026070600009'], remainingCapacity: 10, status: 'LOADING' as const },
+  { planNo: 'VSP-20260704', vehicleModel: '雅迪冠能DE8', vehicleCount: 15, dealerName: '郑州雅迪旗舰店', dealerId: 'DLR-004', plannedShipDate: '2026-07-20', actualShipDate: undefined, route: '华中线-豫中段', driver: '赵伟', matchedOrders: [], remainingCapacity: 15, status: 'PLANNED' as const },
+  { planNo: 'VSP-20260705', vehicleModel: '雅迪DE3', vehicleCount: 10, dealerName: '武汉雅迪服务中心', dealerId: 'DLR-005', plannedShipDate: '2026-07-18', actualShipDate: '2026-07-18', route: '华中线-鄂东段', driver: '陈军', matchedOrders: ['OMS2026070500011'], remainingCapacity: 4, status: 'ARRIVED' as const },
+  { planNo: 'VSP-20260706', vehicleModel: '雅迪冠能DE8', vehicleCount: 20, dealerName: '杭州雅迪旗舰店', dealerId: 'DLR-001', plannedShipDate: '2026-07-22', actualShipDate: undefined, route: '华东线-沪杭段', driver: '刘磊', matchedOrders: [], remainingCapacity: 20, status: 'PLANNED' as const },
+];
+
+// ========== 供应商缺件ETA数据 ==========
+
+export const supplierETAData: Record<string, { skuCode: string; skuName: string; shortageQty: number; supplier: string; estimatedArrival: string; reason: string }[]> = {};
+mockOrders.filter((o) => ['PENDING_REVIEW', 'SCHEDULING', 'PICKING', 'READY_TO_SHIP'].includes(o.status)).slice(0, 8).forEach((order) => {
+  const shortageItems = order.items.filter((it) => it.shortageQty > 0);
+  if (shortageItems.length > 0 || Math.random() > 0.4) {
+    const items = shortageItems.length > 0 ? shortageItems : [order.items[0]];
+    supplierETAData[order.orderNo] = items.map((it) => ({
+      skuCode: it.skuCode, skuName: it.skuName,
+      shortageQty: it.shortageQty || randomInt(1, 5),
+      supplier: randomPick(['BOSCH', 'MANN', 'DID', '博世', '全顺', '凯利', '雅迪原厂']),
+      estimatedArrival: formatDate(new Date(2026, 6, randomInt(17, 25), randomInt(8, 18))),
+      reason: randomPick(['SUPPLIER_PENDING', 'IN_TRANSIT', 'CUSTOMS', 'PRODUCTION']),
+    }));
+  }
+});

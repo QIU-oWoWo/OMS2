@@ -513,6 +513,34 @@ export interface DeliveryNoteDTO {
   operator: string;
 }
 
+// ========== 整车发货计划类型 ==========
+
+export interface VehicleShippingPlan {
+  planNo: string;
+  vehicleModel: string;
+  vehicleCount: number;
+  dealerName: string;
+  dealerId: string;
+  plannedShipDate: string;
+  actualShipDate?: string;
+  route: string;
+  driver: string;
+  matchedOrders: string[];
+  remainingCapacity: number;
+  status: 'PLANNED' | 'LOADING' | 'IN_TRANSIT' | 'ARRIVED';
+}
+
+// ========== 供应商缺件ETA类型 ==========
+
+export interface SupplierETA {
+  skuCode: string;
+  skuName: string;
+  shortageQty: number;
+  supplier: string;
+  estimatedArrival: string;
+  reason: 'SUPPLIER_PENDING' | 'IN_TRANSIT' | 'CUSTOMS' | 'PRODUCTION';
+}
+
 export interface SystemParam {
   paramKey: string;
   paramName: string;
