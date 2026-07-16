@@ -500,6 +500,19 @@ export interface AuditLog {
   createTime: string;
 }
 
+// ========== 电子交货单类型 ==========
+
+export interface DeliveryNoteDTO {
+  noteNo: string;
+  orderNo: string;
+  warehouseName: string;
+  status: 'GENERATED' | 'PRINTED' | 'SHIPPED' | 'RECEIVED';
+  generateTime: string;
+  items: { skuCode: string; skuName: string; quantity: number; pickedQty: number }[];
+  totalQty: number;
+  operator: string;
+}
+
 export interface SystemParam {
   paramKey: string;
   paramName: string;

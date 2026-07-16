@@ -229,25 +229,6 @@ export default function MainLayout() {
           </Space>
 
           <Space size={20}>
-            {/* 快捷操作 */}
-            <Space size={8}>
-              <span
-                style={{
-                  cursor: 'pointer',
-                  padding: '4px 12px',
-                  borderRadius: 4,
-                  background: '#FFF3E8',
-                  color: '#FF6B00',
-                  fontSize: 13,
-                  fontWeight: 500,
-                }}
-                onClick={() => navigate('/orders?action=create')}
-              >
-                <PlusOutlined style={{ marginRight: 4 }} />
-                新建订单
-              </span>
-            </Space>
-
             {/* 通知 */}
             <Badge count={5} size="small">
               <BellOutlined style={{ fontSize: 18, cursor: 'pointer', color: '#595959' }} />

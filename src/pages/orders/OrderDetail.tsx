@@ -25,7 +25,7 @@ import {
   MessageOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { mockOrders, mockOperationLogs } from '../../data/mockData';
+import { mockOrders, mockOperationLogs, mockDeliveryNotes } from '../../data/mockData';
 import {
   ORDER_STATUS_MAP,
   BIZ_TYPE_MAP,
@@ -42,6 +42,7 @@ export default function OrderDetail() {
   const navigate = useNavigate();
 
   const order = mockOrders.find((o) => o.orderNo === orderNo);
+  const deliveryNote = mockDeliveryNotes.find((dn) => dn.orderNo === orderNo);
 
   if (!order) {
     return (
@@ -269,6 +270,25 @@ export default function OrderDetail() {
                   <a style={{ fontFamily: 'monospace' }}>{order.trackingNo}</a>
                 </Descriptions.Item>
               </Descriptions>
+            </Card>
+          )}
+
+          {/* 电子交货单 */}
+          {deliveryNote && (
+            <Card title="电子交货单" size="small" style={{ marginBottom: 16, borderLeft: '3px solid #FF6B00' }}>
+              <Descriptions column={1} size="small" colon={false}>
+                <Descriptions.Item label="交货单号"><span style={{ fontFamily: 'monospace', fontWeight: 500 }}>{deliveryNote.noteNo}</span></Descriptions.Item>
+                <Descriptions.Item label="仓库">{deliveryNote.warehouseName}</Descriptions.Item>
+                <Descriptions.Item label="状态"><Tag color={deliveryNote.status === 'RECEIVED' ? '#16A34A' : deliveryNote.status === 'SHIPPED' ? '#0284C7' : '#FF6B00'}>{deliveryNote.status === 'GENERATED' ? '已生成' : deliveryNote.status === 'PRINTED' ? '已打印' : deliveryNote.status === 'SHIPPED' ? '已发货' : '已签收'}</Tag></Descriptions.Item>
+                <Descriptions.Item label="总件数">{deliveryNote.totalQty} 件</Descriptions.Item>
+                <Descriptions.Item label="操作员">{deliveryNote.operator}</Descriptions.Item>
+              </Descriptions>
+              <Table size="small" style={{ marginTop: 8 }} rowKey="skuCode" pagination={false} dataSource={deliveryNote.items}
+                columns={[
+                  { title: 'SKU', dataIndex: 'skuCode', width: 90, render: (c: string) => <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{c}</span> },
+                  { title: '应发', dataIndex: 'quantity', width: 40, align: 'center' },
+                  { title: '实拣', dataIndex: 'pickedQty', width: 40, align: 'center', render: (v: number, _: any, i: number) => v < deliveryNote.items[i].quantity ? <span style={{ color: '#E11D48' }}>{v}</span> : <span style={{ color: '#16A34A' }}>{v}</span> },
+                ]} />
             </Card>
           )}
 

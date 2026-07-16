@@ -459,6 +459,22 @@ export const mockCall400Orders = generateCall400Orders(mockOrders);
 export const mockTrackingList = generateTrackingData(mockOrders);
 export const mockProducts = generateProducts();
 
+// ========== 生成电子交货单数据 ==========
+
+export const mockDeliveryNotes = mockOrders
+  .filter((o) => ['READY_TO_SHIP', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(o.status))
+  .slice(0, 8)
+  .map((order, i) => ({
+    noteNo: `DN-202607${String(i + 1).padStart(4, '0')}`,
+    orderNo: order.orderNo,
+    warehouseName: randomPick(['华东仓', '华南仓', '华北仓', '西南仓']),
+    status: (order.status === 'COMPLETED' || order.status === 'DELIVERED') ? 'RECEIVED' as const : order.status === 'IN_TRANSIT' ? 'SHIPPED' as const : 'GENERATED' as const,
+    generateTime: order.createTime,
+    items: order.items.map((it) => ({ skuCode: it.skuCode, skuName: it.skuName, quantity: it.quantity, pickedQty: it.quantity - it.shortageQty })),
+    totalQty: order.items.reduce((s, it) => s + it.quantity, 0),
+    operator: '李明辉',
+  }));
+
 // ========== 生成库存共享数据 ==========
 
 export function generateInventoryShares(): InventoryShareDTO[] {
