@@ -11,7 +11,7 @@ import { mockAppointments } from '../../data/mockData';
 import { APPOINT_STATUS_MAP } from '../../types';
 import type { AppointmentDTO, AppointStatus } from '../../types';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
 const STATUS_COLORS: Record<AppointStatus, string> = {
