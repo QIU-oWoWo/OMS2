@@ -208,7 +208,7 @@ export function generateAppointments(orders: OrderDTO[]): AppointmentDTO[] {
 // ========== 生成异常数据 ==========
 
 export function generateExceptions(orders: OrderDTO[]): ExceptionDTO[] {
-  const types = ['UNBOXING_DAMAGE', 'NEW_PART_RETURN', 'PAINT_COLOR_DIFF', 'LOGISTICS_LOST', 'WARRANTY_RETURN', 'PART_STATUS_ERROR', 'LOGISTICS_EXCEPTION'] as const;
+  const types = ['UNBOXING_DAMAGE', 'NEW_PART_RETURN', 'PAINT_COLOR_DIFF', 'LOGISTICS_LOST', 'WARRANTY_RETURN', 'WRONG_ITEM', 'MISSING_ITEM', 'LOGISTICS_EXCEPTION'] as const;
   const priorities = ['P0', 'P1', 'P2', 'P3'] as const;
   const statuses = ['PENDING', 'PROCESSING', 'RESOLVED', 'CLOSED'] as const;
   const parties = ['WAREHOUSE', 'LOGISTICS', 'SUPPLIER', 'DEALER', 'SYSTEM'] as const;
@@ -220,7 +220,8 @@ export function generateExceptions(orders: OrderDTO[]): ExceptionDTO[] {
     PAINT_COLOR_DIFF: ['车身外壳套件烤漆颜色与样品色差超过允收范围', '前挡泥板烤漆存在色斑和橘皮纹', '定制喷涂颜色与确认样不符'],
     LOGISTICS_LOST: ['顺丰运单SF90012345678显示已揽收但72小时无更新，疑似丢件', '京东物流反馈包裹在中转站遗失', '德邦快递反馈运输途中包裹丢失'],
     WARRANTY_RETURN: ['三包期内蓄电池容量衰减超过30%，客户要求退件', '电机异响故障，三包鉴定后确认退件', '控制器功能失效，三包期内申请退换'],
-    PART_STATUS_ERROR: ['应发YD-BP-001实际发出YD-BP-002，错发规格', '订单包含5件商品实发4件，漏发空气滤芯1件', '错发-经销商实际下单前刹车片收到后刹车片'],
+    WRONG_ITEM: ['应发YD-BP-001实际发出YD-BP-002，错发规格', '经销商实际下单前刹车片收到后刹车片', '发错规格-应为LED前大灯实际发出LED尾灯'],
+    MISSING_ITEM: ['订单包含5件商品实发4件，漏发空气滤芯1件', '漏发控制器1台，包裹重量与发货单不符', '经销商反馈缺少充电器2个'],
     LOGISTICS_EXCEPTION: ['物流轨迹显示派送异常，收件地址无法找到', '运输途中包裹外包装严重破损，客户拒收', '物流信息超过48小时未更新'],
   };
 
