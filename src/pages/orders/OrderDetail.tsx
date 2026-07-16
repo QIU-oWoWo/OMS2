@@ -5,7 +5,7 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { mockOrders, mockDeliveryNotes, mockTrackingList, vehicleShippingPlans, supplierETAData, getOperationLogs, mockExceptions } from '../../data/mockData';
 import { ORDER_STATUS_MAP, BIZ_TYPE_MAP, URGENCY_MAP, FULFILL_METHOD_MAP, ORDER_STATUS_STEPS, EXCEPTION_TYPE_MAP, EXCEPTION_STATUS_MAP } from '../../types';
-import type { OrderItem, OrderStatus } from '../../types';
+import type { OrderItem, OrderStatus, OrderDTO } from '../../types';
 
 const { Title, Text } = Typography;
 
@@ -81,9 +81,23 @@ export default function OrderDetail() {
       <Row gutter={16}>
         {/* 左侧：商品明细 + 物流/ETA */}
         <Col span={17}>
-          <Card title="商品明细" style={{ marginBottom: 16 }}>
-            <Table rowKey="skuCode" columns={itemColumns} dataSource={order.items} pagination={false} size="middle"
-              summary={() => (<Table.Summary.Row><Table.Summary.Cell index={0} colSpan={3}><Text strong>合计</Text></Table.Summary.Cell><Table.Summary.Cell index={1} align="center"><Text strong>{order.items.reduce((s, i) => s + i.quantity, 0)}</Text></Table.Summary.Cell><Table.Summary.Cell index={2} align="center" /><Table.Summary.Cell index={3} align="right"><Text strong style={{ color: '#FF6B00', fontSize: 16 }}>¥{order.totalAmount.toLocaleString()}</Text></Table.Summary.Cell></Table.Summary.Row>)} />
+          <Card title="商品明细（按车架号汇总）" style={{ marginBottom: 16 }}>
+            {order.vinCodes.map((vin, vi) => (
+              <div key={vin} style={{ marginBottom: vi < order.vinCodes.length - 1 ? 16 : 0 }}>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Tag color="#7C3AED" style={{ fontFamily: 'monospace', fontSize: 12 }}>VIN {vi + 1}: {vin}</Tag>
+                  <Text type="secondary" style={{ fontSize: 12 }}>关联配件明细：</Text>
+                </div>
+                <Table rowKey="skuCode" columns={itemColumns} dataSource={order.items} pagination={false} size="small"
+                  summary={() => (<Table.Summary.Row><Table.Summary.Cell index={0} colSpan={3} /><Table.Summary.Cell index={1} align="center"><Text strong>{order.items.reduce((s, i) => s + i.quantity, 0)}</Text></Table.Summary.Cell><Table.Summary.Cell index={2} align="center" /><Table.Summary.Cell index={3} align="right"><Text strong style={{ color: '#FF6B00' }}>¥{Math.round(order.totalAmount / order.vinCodes.length * 100) / 100}</Text></Table.Summary.Cell></Table.Summary.Row>)} />
+              </div>
+            ))}
+            <Divider style={{ margin: '8px 0' }} />
+            <div style={{ textAlign: 'right' }}>
+              <Text type="secondary">订单总计：</Text>
+              <Text strong style={{ color: '#FF6B00', fontSize: 16, marginLeft: 8 }}>¥{order.totalAmount.toLocaleString()}</Text>
+              <Text type="secondary" style={{ marginLeft: 8 }}>（{order.vinCodes.length} 个车架号 · {order.items.length} 种SKU · {order.items.reduce((s, i) => s + i.quantity, 0)} 件商品）</Text>
+            </div>
           </Card>
 
           {/* 已发订单：物流/配送信息 */}

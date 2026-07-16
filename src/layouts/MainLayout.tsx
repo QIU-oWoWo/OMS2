@@ -223,10 +223,14 @@ export default function MainLayout() {
               {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             </span>
             <Input
-              placeholder="搜索订单号/经销商/VIN码..."
+              placeholder="搜索订单号 / 车架号(VIN) / 手机号..."
               prefix={<SearchOutlined style={{ color: '#BFBFBF' }} />}
-              style={{ width: 360 }}
+              style={{ width: 380 }}
               allowClear
+              onPressEnter={(e) => {
+                const val = (e.target as HTMLInputElement).value.trim();
+                if (val) navigate(`/orders?search=${encodeURIComponent(val)}`);
+              }}
             />
           </Space>
 

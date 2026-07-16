@@ -30,7 +30,7 @@ export interface OrderDTO {
   urgencyLevel: UrgencyLevel;
   fulfillMethod: FulfillMethod;
   status: OrderStatus;
-  vinCode: string;
+  vinCodes: string[];
   baseSource: string;
   shortageFlag: boolean;
   skuCount: number;

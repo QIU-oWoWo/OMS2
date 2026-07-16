@@ -93,7 +93,7 @@ export function generateOrders(): OrderDTO[] {
   const urgencies = ['NORMAL', 'URGENT', 'CRITICAL'] as const;
   const methods = ['DIRECT_SHIP', 'WAREHOUSE_SHIP'] as const;
   const bases = ['华东基地', '华南基地', '华北基地', '西南基地'];
-  const vins = [
+  const vinPool = [
     'LSVAU2180N2012345', 'LSVAU2190N2015678', 'LSVAU2200N2018901',
     'LSVAU2210N2021123', 'LSVAU2220N2024456', 'LSVAU2230N2027789',
     'LSVAU2240N2030012', 'LSVAU2250N2033345',
@@ -131,7 +131,7 @@ export function generateOrders(): OrderDTO[] {
       urgencyLevel: randomPick(urgencies),
       fulfillMethod: randomPick(methods),
       status,
-      vinCode: randomPick(vins),
+      vinCodes: Array.from({ length: randomInt(1, 3) }, () => randomPick(vinPool)),
       baseSource: randomPick(bases),
       shortageFlag,
       skuCount: items.length,

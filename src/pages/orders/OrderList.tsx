@@ -54,6 +54,7 @@ export default function OrderList() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialStatus = searchParams.get('status') as OrderStatus | null;
+  const searchKeyword = searchParams.get('search') || '';
 
   const [activeTab, setActiveTab] = useState<OrderStatus | 'ALL'>(initialStatus || 'ALL');
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
@@ -95,6 +96,15 @@ export default function OrderList() {
 
   const filteredOrders = useMemo(() => {
     let result = [...mockOrders];
+    // 全局搜索：支持订单号/VIN/手机号
+    if (searchKeyword) {
+      const kw = searchKeyword.toUpperCase();
+      result = result.filter((o) =>
+        o.orderNo.toUpperCase().includes(kw) ||
+        o.vinCodes.some((v) => v.toUpperCase().includes(kw)) ||
+        o.receiverPhone.includes(searchKeyword)
+      );
+    }
     if (activeTab !== 'ALL') result = result.filter((o) => o.status === activeTab);
     if (filters.orderNo) result = result.filter((o) => o.orderNo.includes(filters.orderNo.toUpperCase()) || o.orderNo.includes(filters.orderNo));
     if (filters.dealerName) result = result.filter((o) => o.dealerName.includes(filters.dealerName));
@@ -103,10 +113,10 @@ export default function OrderList() {
     if (filters.urgencyLevels.length > 0) result = result.filter((o) => filters.urgencyLevels.includes(o.urgencyLevel));
     if (filters.fulfillMethods.length > 0) result = result.filter((o) => filters.fulfillMethods.includes(o.fulfillMethod));
     if (filters.baseSource) result = result.filter((o) => o.baseSource === filters.baseSource);
-    if (filters.vinCode) result = result.filter((o) => o.vinCode.includes(filters.vinCode));
+    if (filters.vinCode) result = result.filter((o) => o.vinCodes.some((v) => v.includes(filters.vinCode)));
     if (filters.shortageOnly) result = result.filter((o) => o.shortageFlag);
     return result;
-  }, [activeTab, filters]);
+  }, [activeTab, filters, searchKeyword]);
 
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { ALL: mockOrders.length };
@@ -145,7 +155,7 @@ export default function OrderList() {
       { title: '总金额', dataIndex: 'totalAmount', key: 'totalAmount', width: 120, align: 'right' as const, sorter: (a, b) => a.totalAmount - b.totalAmount, render: (amount: number) => (<span style={{ fontWeight: 500 }}>¥{amount.toLocaleString()}</span>) },
       { title: '下单时间', dataIndex: 'createTime', key: 'createTime', width: 160, sorter: (a, b) => a.createTime.localeCompare(b.createTime), render: (t: string) => t.replace('T', ' ').substring(0, 16) },
       { title: '当前状态', dataIndex: 'status', key: 'status', width: 100, render: (s: OrderStatus) => (<Tag color={s === 'EXCEPTION' ? '#E11D48' : s === 'COMPLETED' ? '#16A34A' : '#FF6B00'}>{ORDER_STATUS_MAP[s]}</Tag>) },
-      { title: 'VIN码', dataIndex: 'vinCode', key: 'vinCode', width: 170, ellipsis: { showTitle: false }, render: (vin: string) => (<Tooltip title={vin}><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{vin}</span></Tooltip>) },
+      { title: 'VIN码', key: 'vinCode', width: 170, render: (_: unknown, record: OrderDTO) => (<Tooltip title={record.vinCodes.join(', ')}><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{record.vinCodes[0]}{record.vinCodes.length > 1 ? <Tag style={{ marginLeft: 4, fontSize: 10 }}>+{record.vinCodes.length - 1}</Tag> : null}</span></Tooltip>) },
       { title: '基地来源', dataIndex: 'baseSource', key: 'baseSource', width: 100 },
       { title: '缺件', dataIndex: 'shortageFlag', key: 'shortageFlag', width: 60, align: 'center' as const, render: (flag: boolean) => flag ? <Tooltip title="有缺件"><ExclamationCircleOutlined style={{ color: '#E11D48', fontSize: 16 }} /></Tooltip> : null },
       { title: '操作', key: 'actions', fixed: 'right' as const, width: 120, render: (_: unknown, record: OrderDTO) => (<Space size="small"><a onClick={(e) => { e.stopPropagation(); navigate(`/orders/${record.orderNo}`); }} style={{ color: '#FF6B00' }}>查看</a><Dropdown menu={{ items: [{ key: 'audit', label: '审核', icon: <CheckCircleOutlined /> }, { key: 'schedule', label: '排单', icon: <CheckCircleOutlined /> }, { key: 'export', label: '导出', icon: <DownloadOutlined /> }, { key: 'print', label: '打印', icon: <PrinterOutlined /> }, { key: 'expedite', label: '加急', icon: <ThunderboltOutlined /> }] }} trigger={['click']}><a onClick={(e) => e.stopPropagation()}><MoreOutlined /></a></Dropdown></Space>) },
