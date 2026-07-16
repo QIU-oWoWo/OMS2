@@ -15,6 +15,7 @@ import LogisticsList from './pages/exceptions/LogisticsList';
 import LogisticsDetail from './pages/exceptions/LogisticsDetail';
 import ProductList from './pages/products/ProductList';
 import ProductEdit from './pages/products/ProductEdit';
+import InventoryShare from './pages/products/InventoryShare';
 
 function App() {
   return (
@@ -41,6 +42,7 @@ function App() {
               {/* 商品管理 */}
               <Route path="/products" element={<ProductList />} />
               <Route path="/products/new" element={<ProductEdit />} />
+              <Route path="/products/inventory-share" element={<InventoryShare />} />
               <Route path="/products/:skuCode" element={<ProductEdit />} />
               {/* 其他 */}
               <Route path="/analytics" element={<PlaceholderPage title="数据分析" />} />

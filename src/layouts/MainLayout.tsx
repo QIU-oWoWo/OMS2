@@ -34,6 +34,7 @@ import {
   FileProtectOutlined,
   EnvironmentOutlined,
   CheckSquareOutlined,
+  SwapOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 
@@ -72,9 +73,13 @@ const menuItems: MenuItem[] = [
     ],
   },
   {
-    key: '/products',
+    key: 'products',
     icon: <AppstoreOutlined />,
     label: '商品管理',
+    children: [
+      { key: '/products', icon: <AppstoreOutlined />, label: '商品列表' },
+      { key: '/products/inventory-share', icon: <SwapOutlined />, label: '库存共享管理' },
+    ],
   },
   {
     key: '/analytics',

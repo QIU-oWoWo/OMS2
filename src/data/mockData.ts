@@ -1,7 +1,7 @@
 import type {
   OrderDTO, AppointmentDTO, ExceptionDTO, OperationLog,
   CustomOrderDTO, Call400DTO, TrackingDTO, TrackingNode, ProductDTO,
-  TrackStatus,
+  TrackStatus, InventoryShareDTO,
 } from '../types';
 
 // ========== 雅迪配件商品池 ==========
@@ -458,6 +458,48 @@ export const mockCustomOrders = generateCustomOrders(mockOrders);
 export const mockCall400Orders = generateCall400Orders(mockOrders);
 export const mockTrackingList = generateTrackingData(mockOrders);
 export const mockProducts = generateProducts();
+
+// ========== 生成库存共享数据 ==========
+
+export function generateInventoryShares(): InventoryShareDTO[] {
+  const shareDealers = [
+    { id: 'DLR-001', name: '杭州雅迪旗舰店' },
+    { id: 'DLR-003', name: '合肥雅迪专卖店' },
+    { id: 'DLR-005', name: '武汉雅迪服务中心' },
+    { id: 'DLR-007', name: '成都雅迪体验店' },
+    { id: 'DLR-101', name: '绍兴二网经销商A' },
+    { id: 'DLR-102', name: '镇江二网经销商B' },
+  ];
+  const statuses = ['PENDING_APPROVAL', 'ACTIVE', 'ACTIVE', 'ACTIVE', 'COMPLETED', 'CANCELLED', 'RETURNED'] as const;
+
+  return Array.from({ length: 7 }, (_, i) => {
+    const from = shareDealers[i % 4];
+    const to = shareDealers[(i + 1) % 6];
+    const items = [
+      { skuCode: randomPick(['YD-BP-001', 'YD-FL-002', 'YD-CH-001', 'YD-LT-001']), skuName: randomPick(['前刹车片总成', '机油滤芯', '428H传动链条', 'LED前大灯总成']), quantity: randomInt(5, 30), unitPrice: randomInt(35, 320) },
+    ];
+    const total = items.reduce((s, it) => s + it.quantity * it.unitPrice, 0);
+    const createDate = new Date(2026, 6, randomInt(5, 16), randomInt(8, 18));
+
+    return {
+      shareNo: `SHR202607${String(16 - i).padStart(2, '0')}${String(i + 1).padStart(4, '0')}`,
+      fromDealerId: from.id,
+      fromDealerName: from.name,
+      toDealerId: to.id,
+      toDealerName: to.name,
+      items,
+      totalAmount: Math.round(total * 100) / 100,
+      status: statuses[i],
+      qualityCert: i < 5 ? `QC-2026-${String(7000 + i)}` : '',
+      qualityCertStatus: i < 5 ? 'VERIFIED' : i === 5 ? 'PENDING' : 'FAILED',
+      createTime: formatDate(createDate),
+      updateTime: formatDate(new Date(createDate.getTime() + randomInt(1, 48) * 3600000)),
+      remark: randomPick(['常规库存共享', '旺季备货调拨', '新品推广共享', '换季清仓共享', '紧急补货请求', '']),
+    };
+  });
+}
+
+export const mockInventoryShares = generateInventoryShares();
 
 // ========== 仪表盘统计数据 ==========
 

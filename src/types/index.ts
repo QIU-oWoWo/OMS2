@@ -316,3 +316,38 @@ export interface ProductDTO {
   status: ProductStatus;
   updateTime: string;
 }
+
+// ========== 库存共享相关类型 ==========
+
+export type ShareStatus = 'PENDING_APPROVAL' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED' | 'RETURNED';
+
+export const SHARE_STATUS_MAP: Record<ShareStatus, { label: string; color: string }> = {
+  PENDING_APPROVAL: { label: '待审核', color: '#F59E0B' },
+  ACTIVE: { label: '共享中', color: '#16A34A' },
+  COMPLETED: { label: '已完成', color: '#0284C7' },
+  CANCELLED: { label: '已取消', color: '#8C8C8C' },
+  RETURNED: { label: '已退回', color: '#E11D48' },
+};
+
+export interface ShareItem {
+  skuCode: string;
+  skuName: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+export interface InventoryShareDTO {
+  shareNo: string;
+  fromDealerId: string;
+  fromDealerName: string;
+  toDealerId: string;
+  toDealerName: string;
+  items: ShareItem[];
+  totalAmount: number;
+  status: ShareStatus;
+  qualityCert: string;
+  qualityCertStatus: 'VERIFIED' | 'PENDING' | 'FAILED';
+  createTime: string;
+  updateTime: string;
+  remark: string;
+}
