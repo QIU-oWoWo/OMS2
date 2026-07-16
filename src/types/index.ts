@@ -45,6 +45,8 @@ export interface OrderDTO {
   items: OrderItem[];
   trackingNo?: string;
   logisticsCompany?: string;
+  shippingMethod: 'WITH_VEHICLE' | 'STANDALONE';
+  linkedPlanNo?: string;
 }
 
 // ========== 预约单相关类型 ==========

@@ -146,6 +146,8 @@ export function generateOrders(): OrderDTO[] {
       items,
       trackingNo: ['IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(status) ? `SF${String(randomInt(100000000000, 999999999999))}` : undefined,
       logisticsCompany: ['IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(status) ? randomPick(['顺丰速运', '京东物流', '德邦快递', '中通快递']) : undefined,
+      shippingMethod: (i % 3 === 0) ? 'WITH_VEHICLE' as const : 'STANDALONE' as const,
+      linkedPlanNo: undefined,
     });
   }
 
@@ -163,6 +165,17 @@ export function generateOrders(): OrderDTO[] {
 
   orders.forEach((order, index) => {
     order.status = orderedStatuses[index % orderedStatuses.length];
+    // 确保 tracking/logistics 与最终状态一致
+    const finalStatus = order.status;
+    const needTracking = ['IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(finalStatus);
+    if (needTracking && !order.trackingNo) {
+      order.trackingNo = `SF${String(randomInt(100000000000, 999999999999))}`;
+      order.logisticsCompany = randomPick(['顺丰速运', '京东物流', '德邦快递', '中通快递']);
+    }
+    if (!needTracking) {
+      order.trackingNo = undefined;
+      order.logisticsCompany = undefined;
+    }
   });
 
   return orders.sort((a, b) => b.createTime.localeCompare(a.createTime));
@@ -864,30 +877,81 @@ export const systemParams = [
   { paramKey: 'shareFeeRate', paramName: '库存共享服务费率', paramValue: 2, defaultValue: '2', description: '共享金额的服务费百分比', type: 'NUMBER' as const },
 ];
 
-// ========== 整车发货计划数据 ==========
+// ========== 整车发货计划数据（引用真实订单号） ==========
 
-export const vehicleShippingPlans = [
-  { planNo: 'VSP-20260701', vehicleModel: '雅迪冠能DE8', vehicleCount: 18, dealerName: '杭州雅迪旗舰店', dealerId: 'DLR-001', plannedShipDate: '2026-07-18', actualShipDate: undefined, route: '华东线-沪杭段', driver: '王建国', matchedOrders: ['OMS2026070100001', 'OMS2026070300003'], remainingCapacity: 8, status: 'PLANNED' as const },
-  { planNo: 'VSP-20260702', vehicleModel: '雅迪冠能DE3', vehicleCount: 12, dealerName: '南京雅迪体验中心', dealerId: 'DLR-002', plannedShipDate: '2026-07-17', actualShipDate: '2026-07-17', route: '华东线-宁镇段', driver: '李强', matchedOrders: ['OMS2026070200005'], remainingCapacity: 5, status: 'IN_TRANSIT' as const },
-  { planNo: 'VSP-20260703', vehicleModel: '雅迪DE8+冠能混合', vehicleCount: 22, dealerName: '合肥雅迪专卖店', dealerId: 'DLR-003', plannedShipDate: '2026-07-19', actualShipDate: undefined, route: '华东线-皖中段', driver: '张明', matchedOrders: ['OMS2026070400007', 'OMS2026070600009'], remainingCapacity: 10, status: 'LOADING' as const },
-  { planNo: 'VSP-20260704', vehicleModel: '雅迪冠能DE8', vehicleCount: 15, dealerName: '郑州雅迪旗舰店', dealerId: 'DLR-004', plannedShipDate: '2026-07-20', actualShipDate: undefined, route: '华中线-豫中段', driver: '赵伟', matchedOrders: [], remainingCapacity: 15, status: 'PLANNED' as const },
-  { planNo: 'VSP-20260705', vehicleModel: '雅迪DE3', vehicleCount: 10, dealerName: '武汉雅迪服务中心', dealerId: 'DLR-005', plannedShipDate: '2026-07-18', actualShipDate: '2026-07-18', route: '华中线-鄂东段', driver: '陈军', matchedOrders: ['OMS2026070500011'], remainingCapacity: 4, status: 'ARRIVED' as const },
-  { planNo: 'VSP-20260706', vehicleModel: '雅迪冠能DE8', vehicleCount: 20, dealerName: '杭州雅迪旗舰店', dealerId: 'DLR-001', plannedShipDate: '2026-07-22', actualShipDate: undefined, route: '华东线-沪杭段', driver: '刘磊', matchedOrders: [], remainingCapacity: 20, status: 'PLANNED' as const },
-];
+export const vehicleShippingPlans = (() => {
+  const withVehicleOrders = mockOrders.filter((o) => o.shippingMethod === 'WITH_VEHICLE');
+  const plans = [];
+  const dealers = [...new Set(withVehicleOrders.map((o) => o.dealerId))];
 
-// ========== 供应商缺件ETA数据 ==========
+  for (let i = 0; i < Math.min(6, dealers.length); i++) {
+    const dealerOrders = withVehicleOrders.filter((o) => o.dealerId === dealers[i]);
+    const matched = dealerOrders.slice(0, randomInt(1, 3)).map((o) => o.orderNo);
+    plans.push({
+      planNo: `VSP-2026070${i + 1}`,
+      vehicleModel: randomPick(['雅迪冠能DE8', '雅迪DE3', '雅迪冠能DE8+DE3混合']),
+      vehicleCount: randomInt(10, 25),
+      dealerName: dealerOrders[0]?.dealerName || '未知经销商',
+      dealerId: dealers[i],
+      plannedShipDate: formatDateShort(new Date(2026, 6, randomInt(17, 25))),
+      actualShipDate: i % 3 === 0 ? formatDateShort(new Date(2026, 6, randomInt(15, 20))) : undefined,
+      route: randomPick(['华东线-沪杭段', '华东线-宁镇段', '华东线-皖中段', '华中线-豫中段', '华中线-鄂东段']),
+      driver: randomPick(['王建国', '李强', '张明', '赵伟', '陈军', '刘磊']),
+      matchedOrders: matched,
+      remainingCapacity: randomInt(2, 15),
+      status: (['PLANNED', 'LOADING', 'IN_TRANSIT', 'ARRIVED'] as const)[i % 4],
+    });
+    // 设置订单的 linkedPlanNo
+    matched.forEach((orderNo) => {
+      const order = mockOrders.find((o) => o.orderNo === orderNo);
+      if (order) order.linkedPlanNo = `VSP-2026070${i + 1}`;
+    });
+  }
+  return plans;
+})();
+
+// ========== 供应商缺件ETA数据（引用真实订单号） ==========
 
 export const supplierETAData: Record<string, { skuCode: string; skuName: string; shortageQty: number; supplier: string; estimatedArrival: string; reason: string }[]> = {};
-mockOrders.filter((o) => ['PENDING_REVIEW', 'SCHEDULING', 'PICKING', 'READY_TO_SHIP'].includes(o.status)).slice(0, 8).forEach((order) => {
-  const shortageItems = order.items.filter((it) => it.shortageQty > 0);
-  if (shortageItems.length > 0 || Math.random() > 0.4) {
-    const items = shortageItems.length > 0 ? shortageItems : [order.items[0]];
-    supplierETAData[order.orderNo] = items.map((it) => ({
+mockOrders.filter((o) => ['PENDING_REVIEW', 'SCHEDULING', 'PICKING', 'READY_TO_SHIP'].includes(o.status)).forEach((order) => {
+  supplierETAData[order.orderNo] = order.items
+    .filter((it) => it.shortageQty > 0 || Math.random() > 0.6)
+    .map((it) => ({
       skuCode: it.skuCode, skuName: it.skuName,
       shortageQty: it.shortageQty || randomInt(1, 5),
       supplier: randomPick(['BOSCH', 'MANN', 'DID', '博世', '全顺', '凯利', '雅迪原厂']),
       estimatedArrival: formatDate(new Date(2026, 6, randomInt(17, 25), randomInt(8, 18))),
       reason: randomPick(['SUPPLIER_PENDING', 'IN_TRANSIT', 'CUSTOMS', 'PRODUCTION']),
     }));
-  }
 });
+
+// ========== 按订单生成操作日志 ==========
+
+export function getOperationLogs(order: typeof mockOrders[number]) {
+  const baseActions: { action: string; remark?: string }[] = [];
+  const steps = ['PENDING_REVIEW', 'SCHEDULING', 'PICKING', 'READY_TO_SHIP', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'];
+  const stepLabels = ['创建订单', '审核通过', '拣货完成', '确认发货', '物流揽收', '客户签收', '订单归档'];
+  const currentIdx = steps.indexOf(order.status);
+
+  baseActions.push({ action: '创建订单', remark: `经销商 ${order.dealerName} 提交订单` });
+
+  const ops = OPERATORS;
+  for (let i = 1; i <= Math.min(currentIdx, stepLabels.length - 1); i++) {
+    if (i >= 1) {
+      baseActions.push({
+        action: stepLabels[i],
+        remark: i === 1 && order.status === 'EXCEPTION' ? '订单转入异常处理流程' : undefined,
+      });
+    }
+  }
+
+  if (order.status === 'EXCEPTION') {
+    baseActions.push({ action: '标记异常', remark: 'SKU缺件，已通知仓库补发' });
+  }
+
+  return baseActions.map((a, i) => {
+    const op = ops[(i + order.orderNo.length) % ops.length];
+    const logDate = new Date(2026, 6, 16 - (baseActions.length - i), randomInt(8, 18), randomInt(0, 59));
+    return { time: formatDate(logDate), operator: op.name, role: op.role, action: a.action, remark: a.remark };
+  }).sort((a, b) => b.time.localeCompare(a.time));
+}

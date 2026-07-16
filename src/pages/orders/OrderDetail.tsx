@@ -3,7 +3,7 @@ import { Card, Descriptions, Table, Tag, Steps, Timeline, Space, Button, Typogra
 import { ArrowLeftOutlined, EnvironmentOutlined, ClockCircleOutlined, CarOutlined, InboxOutlined, ExclamationCircleOutlined, CheckCircleOutlined, TruckOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
-import { mockOrders, mockOperationLogs, mockDeliveryNotes, mockTrackingList, vehicleShippingPlans, supplierETAData } from '../../data/mockData';
+import { mockOrders, mockDeliveryNotes, mockTrackingList, vehicleShippingPlans, supplierETAData, getOperationLogs } from '../../data/mockData';
 import { ORDER_STATUS_MAP, BIZ_TYPE_MAP, URGENCY_MAP, FULFILL_METHOD_MAP, ORDER_STATUS_STEPS } from '../../types';
 import type { OrderDTO, OrderItem, OrderStatus } from '../../types';
 
@@ -23,6 +23,7 @@ export default function OrderDetail() {
   const order = mockOrders.find((o) => o.orderNo === orderNo);
   const deliveryNote = mockDeliveryNotes.find((dn) => dn.orderNo === orderNo);
   const tracking = mockTrackingList.find((t) => t.orderNo === orderNo);
+  const operationLogs = order ? getOperationLogs(order) : [];
 
   if (!order) {
     return (<div style={{ textAlign: 'center', padding: 80 }}><Title level={3} type="secondary">订单未找到</Title><Button type="link" onClick={() => navigate('/orders')}>返回订单列表</Button></div>);
@@ -33,14 +34,14 @@ export default function OrderDetail() {
   const isUnshipped = ['PENDING_REVIEW', 'SCHEDULING', 'PICKING', 'READY_TO_SHIP'].includes(order.status);
   const isException = order.status === 'EXCEPTION';
 
-  // 发货方式：随机分配（随车/非随）
-  const shippingMethod = (order.orderNo.charCodeAt(order.orderNo.length - 1) % 2 === 0) ? 'WITH_VEHICLE' as const : 'STANDALONE' as const;
-  const linkedPlan = shippingMethod === 'WITH_VEHICLE' ? vehicleShippingPlans.find((p) => p.matchedOrders.includes(order.orderNo)) : undefined;
+  // 使用订单自身的 shippingMethod
+  const shippingMethod = order.shippingMethod;
+  const linkedPlan = order.linkedPlanNo ? vehicleShippingPlans.find((p) => p.planNo === order.linkedPlanNo) : undefined;
 
   // 缺件ETA
   const etaData = supplierETAData[order.orderNo] || [];
   const estimatedShipDate = dayjs(order.createTime).add(isUnshipped ? 5 : 0, 'day').format('YYYY-MM-DD');
-  const estimatedArrivalDate = dayjs(estimatedShipDate).add(shippingMethod === 'WITH_VEHICLE' ? 1 : 2, 'day').format('YYYY-MM-DD');
+  const estimatedArrivalDate = isShipped ? (tracking?.nodes[tracking.nodes.length - 1]?.time || order.createTime).replace('T', ' ').substring(0, 10) : dayjs(estimatedShipDate).add(shippingMethod === 'WITH_VEHICLE' ? 1 : 2, 'day').format('YYYY-MM-DD');
 
   const itemColumns: ColumnsType<OrderItem> = [
     { title: 'SKU编码', dataIndex: 'skuCode', width: 140, render: (c: string) => <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{c}</span> },
@@ -226,7 +227,7 @@ export default function OrderDetail() {
 
           {/* 操作日志 */}
           <Card title="操作日志" size="small" style={{ marginBottom: 16 }}>
-            <Timeline items={mockOperationLogs.slice(0, 6).map((log) => ({ color: log.action.includes('异常') ? 'red' : log.action.includes('完成') || log.action.includes('签收') ? 'green' : '#FF6B00', children: (<div><Text style={{ fontSize: 13 }}>{log.action}</Text><br /><Text type="secondary" style={{ fontSize: 12 }}>{log.operator}（{log.role}）</Text><br /><Text type="secondary" style={{ fontSize: 11 }}>{log.time.replace('T', ' ').substring(0, 19)}</Text>{log.remark && <><br /><Text type="secondary" italic style={{ fontSize: 11 }}>{log.remark}</Text></>}</div>) }))} />
+            <Timeline items={operationLogs.map((log) => ({ color: log.action.includes('异常') ? 'red' : log.action.includes('签收') || log.action.includes('归档') ? 'green' : '#FF6B00', children: (<div><Text style={{ fontSize: 13 }}>{log.action}</Text><br /><Text type="secondary" style={{ fontSize: 12 }}>{log.operator}（{log.role}）</Text><br /><Text type="secondary" style={{ fontSize: 11 }}>{log.time.replace('T', ' ').substring(0, 19)}</Text>{log.remark && <><br /><Text type="secondary" italic style={{ fontSize: 11 }}>{log.remark}</Text></>}</div>) }))} />
           </Card>
         </Col>
       </Row>
