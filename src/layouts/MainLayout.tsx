@@ -94,10 +94,10 @@ const menuItems: MenuItem[] = [
     icon: <BarChartOutlined />,
     label: '数据分析',
     children: [
-      { key: '/analytics/timeliness', icon: <ClockCircleOutlined />, label: '时效看板' },
-      { key: '/analytics/completion-rate', icon: <TrophyOutlined />, label: '达成率报表' },
-      { key: '/analytics/warranty', icon: <SafetyCertificateOutlined />, label: '三包分析' },
-      { key: '/analytics/export-center', icon: <DownloadOutlined />, label: '导出中心' },
+      { key: '/analytics/order-forecast', icon: <RiseOutlined />, label: '订单量预测' },
+      { key: '/analytics/customer-behavior', icon: <UserOutlined />, label: '客户购买行为' },
+      { key: '/analytics/fulfillment-efficiency', icon: <ClockCircleOutlined />, label: '履约效率分析' },
+      { key: '/analytics/warranty-business', icon: <SafetyCertificateOutlined />, label: '三包与经营数据' },
     ],
   },
   {

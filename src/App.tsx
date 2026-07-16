@@ -16,10 +16,10 @@ import LogisticsDetail from './pages/exceptions/LogisticsDetail';
 import ProductList from './pages/products/ProductList';
 import ProductEdit from './pages/products/ProductEdit';
 import InventoryShare from './pages/products/InventoryShare';
-import AnalyticsTimeliness from './pages/analytics/AnalyticsTimeliness';
-import AnalyticsCompletionRate from './pages/analytics/AnalyticsCompletionRate';
-import AnalyticsWarranty from './pages/analytics/AnalyticsWarranty';
-import ExportCenter from './pages/analytics/ExportCenter';
+import OrderForecast from './pages/analytics/OrderForecast';
+import CustomerBehavior from './pages/analytics/CustomerBehavior';
+import FulfillmentEfficiency from './pages/analytics/FulfillmentEfficiency';
+import WarrantyBusiness from './pages/analytics/WarrantyBusiness';
 import ReconciliationList from './pages/reconciliation/ReconciliationList';
 import DifferenceHandle from './pages/reconciliation/DifferenceHandle';
 import PaymentVerification from './pages/reconciliation/PaymentVerification';
@@ -54,10 +54,10 @@ function App() {
               <Route path="/products/inventory-share" element={<InventoryShare />} />
               <Route path="/products/:skuCode" element={<ProductEdit />} />
               {/* 数据分析 */}
-              <Route path="/analytics/timeliness" element={<AnalyticsTimeliness />} />
-              <Route path="/analytics/completion-rate" element={<AnalyticsCompletionRate />} />
-              <Route path="/analytics/warranty" element={<AnalyticsWarranty />} />
-              <Route path="/analytics/export-center" element={<ExportCenter />} />
+              <Route path="/analytics/order-forecast" element={<OrderForecast />} />
+              <Route path="/analytics/customer-behavior" element={<CustomerBehavior />} />
+              <Route path="/analytics/fulfillment-efficiency" element={<FulfillmentEfficiency />} />
+              <Route path="/analytics/warranty-business" element={<WarrantyBusiness />} />
               {/* 对账中心 */}
               <Route path="/reconciliation" element={<ReconciliationList />} />
               <Route path="/reconciliation/differences" element={<DifferenceHandle />} />

@@ -543,14 +543,91 @@ export const dealerMonthlyStats = [
   { dealer: '广州雅迪旗舰店', orders: 138, amount: 271300, achievement: 95.8 },
 ];
 
-// ========== 数据分析 - 时效看板数据 ==========
+// ========== 数据分析 v2 - 订单量预测 ==========
 
-export const timelinessCards = {
-  todayAchievement: { value: 94.2, trend: 2.1 },
-  avgFulfillHours: { value: 36.5, trend: -5.2 },
+export const forecastKpis = {
+  todayOrders: { value: 47, trend: 8.5 },
+  monthTotal: { value: 842, trend: 12.3 },
+  growthRate: { value: 15.8, trend: 3.2 },
+  tomorrowPrediction: { value: 52, confidence: '±6' },
 };
 
-export const stageTimeData = [
+// 近30天实际 vs 预测
+export const orderHistory30 = Array.from({ length: 30 }, (_, i) => {
+  const actual = randomInt(30, 65);
+  return { date: `07/${String(i + 1).padStart(2, '0')}`, actual, predicted: actual + randomInt(-6, 8) };
+});
+
+// 未来7天预测
+export const forecast7Days = Array.from({ length: 7 }, (_, i) => ({
+  date: `07/${String(17 + i).padStart(2, '0')}`,
+  predicted: randomInt(40, 60),
+  lowerBound: randomInt(32, 45),
+  upperBound: randomInt(55, 72),
+}));
+
+// 节假日/促销影响系数
+export const eventImpact = [
+  { event: '春节', period: '1月下旬-2月上旬', impactCoefficient: 0.35, effect: '订单量骤降70%' },
+  { event: '国庆黄金周', period: '10月1-7日', impactCoefficient: 0.60, effect: '订单量下降40%' },
+  { event: '618大促', period: '6月1-18日', impactCoefficient: 1.85, effect: '订单量增长85%' },
+  { event: '双11', period: '11月1-11日', impactCoefficient: 1.60, effect: '订单量增长60%' },
+  { event: '雅迪品牌日', period: '3月15日', impactCoefficient: 2.20, effect: '订单量增长120%' },
+  { event: '开学季', period: '8月下旬-9月上旬', impactCoefficient: 1.45, effect: '订单量增长45%' },
+  { event: '夏季骑行季', period: '5-7月', impactCoefficient: 1.30, effect: '订单量增长30%' },
+];
+
+// ========== 数据分析 v2 - 客户购买行为 ==========
+
+export const behaviorKpis = {
+  repurchaseRate: { value: 42.5, trend: 3.8 },
+  avgOrderValue: { value: 4850, trend: 5.2 },
+  activeDealers: { value: 128, trend: 8.0 },
+  skuActiveRate: { value: 68.3, trend: -2.1 },
+};
+
+export const repurchaseTrend = [
+  { month: '1月', rate: 38.2 }, { month: '2月', rate: 36.5 }, { month: '3月', rate: 40.1 },
+  { month: '4月', rate: 41.8 }, { month: '5月', rate: 43.2 }, { month: '6月', rate: 42.5 },
+  { month: '7月', rate: 42.5 },
+];
+
+export const avgOrderDistribution = [
+  { range: '<1000元', count: 12 }, { range: '1000-3000元', count: 28 }, { range: '3000-5000元', count: 35 },
+  { range: '5000-10000元', count: 22 }, { range: '10000-20000元', count: 18 }, { range: '>20000元', count: 13 },
+];
+
+export const categoryPreference = [
+  { category: '制动系统', sales: 2850, share: 22.5, growth: 8.2 },
+  { category: '电气系统', sales: 3200, share: 25.3, growth: 15.1 },
+  { category: '传动系统', sales: 1800, share: 14.2, growth: -3.5 },
+  { category: '底盘系统', sales: 2100, share: 16.6, growth: 5.8 },
+  { category: '车身部件', sales: 1650, share: 13.0, growth: 2.1 },
+  { category: '动力系统', sales: 1062, share: 8.4, growth: 12.6 },
+];
+
+// 经销商RFM分层
+export const dealerRFM = [
+  { dealer: '杭州雅迪旗舰店', frequency: 145, monetary: 285600, recency: '1天前', tier: '高价值' },
+  { dealer: '郑州雅迪旗舰店', frequency: 156, monetary: 302100, recency: '2天前', tier: '高价值' },
+  { dealer: '广州雅迪旗舰店', frequency: 138, monetary: 271300, recency: '3天前', tier: '高价值' },
+  { dealer: '南京雅迪体验中心', frequency: 132, monetary: 258400, recency: '1天前', tier: '高价值' },
+  { dealer: '成都雅迪体验店', frequency: 125, monetary: 242600, recency: '5天前', tier: '中价值' },
+  { dealer: '合肥雅迪专卖店', frequency: 118, monetary: 221500, recency: '3天前', tier: '中价值' },
+  { dealer: '长沙雅迪旗舰店', frequency: 112, monetary: 215800, recency: '7天前', tier: '中价值' },
+  { dealer: '武汉雅迪服务中心', frequency: 98, monetary: 186200, recency: '4天前', tier: '低价值' },
+];
+
+// ========== 数据分析 v2 - 履约效率 ==========
+
+export const fulfillmentKpis = {
+  avgProcessHours: { value: 8.5, trend: -5.5 },
+  avgDeliveryHours: { value: 22.3, trend: -8.0 },
+  exceptionRate: { value: 4.2, trend: -1.5 },
+  onTimeRate: { value: 93.5, trend: 2.8 },
+};
+
+export const stageTimeDetail = [
   { stage: '审核', 华东基地: 2.1, 华南基地: 2.5, 华北基地: 3.0, 西南基地: 2.8 },
   { stage: '排单', 华东基地: 4.2, 华南基地: 5.1, 华北基地: 4.8, 西南基地: 5.5 },
   { stage: '拣货', 华东基地: 8.5, 华南基地: 9.2, 华北基地: 10.1, 西南基地: 9.8 },
@@ -559,73 +636,110 @@ export const stageTimeData = [
   { stage: '签收', 华东基地: 3.2, 华南基地: 3.8, 华北基地: 4.0, 西南基地: 4.5 },
 ];
 
-export const exceptionTop10 = [
-  { type: '缺货', count: 28 }, { type: '破损', count: 22 }, { type: '超时', count: 18 },
-  { type: '地址异常', count: 15 }, { type: '拒收', count: 12 }, { type: '错发', count: 9 },
-  { type: '其他', count: 6 },
+export const deliveryDistribution = [
+  { period: '24h内', 华东基地: 35, 华南基地: 28, 华北基地: 25, 西南基地: 20 },
+  { period: '24-48h', 华东基地: 40, 华南基地: 38, 华北基地: 35, 西南基地: 32 },
+  { period: '48-72h', 华东基地: 18, 华南基地: 22, 华北基地: 25, 西南基地: 28 },
+  { period: '72h以上', 华东基地: 7, 华南基地: 12, 华北基地: 15, 西南基地: 20 },
 ];
 
-export const baseRanking = [
-  { base: '华东基地', achievement: 96.2, avgHours: 34.1, rank: 1 },
-  { base: '华南基地', achievement: 94.5, avgHours: 37.8, rank: 2 },
-  { base: '华北基地', achievement: 92.1, avgHours: 40.3, rank: 3 },
-  { base: '西南基地', achievement: 89.8, avgHours: 45.6, rank: 4 },
-];
-
-export const satisfactionTrend = [
-  { month: '1月', score: 4.2 }, { month: '2月', score: 4.3 }, { month: '3月', score: 4.1 },
-  { month: '4月', score: 4.4 }, { month: '5月', score: 4.5 }, { month: '6月', score: 4.3 },
-  { month: '7月', score: 4.6 },
-];
-
-// ========== 数据分析 - 达成率报表数据 ==========
-
-export const completionRateData = [
-  { base: '华东基地', totalOrders: 342, achievedOrders: 329, rate: 96.2, overtimeOrders: 13, avgOvertimeHours: 8.5 },
-  { base: '华南基地', totalOrders: 298, achievedOrders: 282, rate: 94.6, overtimeOrders: 16, avgOvertimeHours: 10.2 },
-  { base: '华北基地', totalOrders: 256, achievedOrders: 236, rate: 92.1, overtimeOrders: 20, avgOvertimeHours: 12.8 },
-  { base: '西南基地', totalOrders: 215, achievedOrders: 193, rate: 89.8, overtimeOrders: 22, avgOvertimeHours: 15.3 },
-];
-
-// ========== 数据分析 - 三包分析数据 ==========
-
-export const warrantyCards = { claimRate: 3.2, totalClaims: 47, totalAmount: 286500 };
-
-export const warrantyMonthlyTrend = [
-  { month: '1月', amount: 32000 }, { month: '2月', amount: 28500 }, { month: '3月', amount: 41000 },
-  { month: '4月', amount: 38000 }, { month: '5月', amount: 45000 }, { month: '6月', amount: 52000 },
-  { month: '7月', amount: 50000 },
-];
-
-export const topClaimSkus = Array.from({ length: 20 }, (_, i) => ({
-  skuCode: `YD-${randomPick(['BP', 'FL', 'CH', 'MT', 'CT', 'LT'])}-00${i + 1}`,
-  skuName: randomPick(['前刹车片总成', '空气滤芯', '传动链条', '轮毂电机', '控制器', 'LED大灯']),
-  claimCount: randomInt(3, 25),
-  claimAmount: randomInt(5000, 80000),
-  claimRate: Math.round(randomInt(15, 80) / 10 * 10) / 10,
-  supplier: randomPick(['BOSCH', 'MANN', 'DID', '博世', '全顺', '凯利']),
+export const exceptionRateTrend = Array.from({ length: 30 }, (_, i) => ({
+  date: `07/${String(i + 1).padStart(2, '0')}`,
+  缺货: randomInt(0, 3),
+  破损: randomInt(0, 2),
+  超时: randomInt(0, 2),
+  其他: randomInt(0, 1),
 }));
 
-export const supplierQualityRanking = [
-  { supplier: 'BOSCH', totalSold: 12500, claims: 25, claimRate: 0.2, rank: 1 },
-  { supplier: 'MANN', totalSold: 8900, claims: 22, claimRate: 0.25, rank: 2 },
-  { supplier: 'DID', totalSold: 7600, claims: 23, claimRate: 0.3, rank: 3 },
-  { supplier: '博世', totalSold: 10200, claims: 38, claimRate: 0.37, rank: 4 },
-  { supplier: '全顺', totalSold: 6800, claims: 28, claimRate: 0.41, rank: 5 },
-  { supplier: '凯利', totalSold: 5400, claims: 25, claimRate: 0.46, rank: 6 },
-  { supplier: '雅迪原厂', totalSold: 15200, claims: 72, claimRate: 0.47, rank: 7 },
-  { supplier: '欧司朗', totalSold: 4200, claims: 22, claimRate: 0.52, rank: 8 },
+export const logisticsRanking = [
+  { company: '顺丰速运', avgHours: 18.5, onTimeRate: 97.2, orderCount: 420 },
+  { company: '京东物流', avgHours: 20.1, onTimeRate: 95.8, orderCount: 350 },
+  { company: '德邦快递', avgHours: 24.3, onTimeRate: 92.5, orderCount: 280 },
+  { company: '中通快递', avgHours: 28.7, onTimeRate: 89.1, orderCount: 200 },
+  { company: '圆通速递', avgHours: 32.0, onTimeRate: 85.3, orderCount: 150 },
 ];
 
-// ========== 数据分析 - 导出中心数据 ==========
+// ========== 数据分析 v2 - 三包与经营数据 ==========
 
-export const exportTasks = [
-  { taskNo: 'EXP-001', taskName: '订单明细导出_202607', format: 'EXCEL' as const, status: 'COMPLETED' as const, createTime: '2026-07-16T10:30:00+08:00', expireTime: '2026-07-23T10:30:00+08:00', downloadUrl: '#', rowCount: 15420 },
-  { taskNo: 'EXP-002', taskName: '达成率报表_202607', format: 'EXCEL' as const, status: 'GENERATING' as const, createTime: '2026-07-16T11:00:00+08:00', expireTime: '2026-07-23T11:00:00+08:00', rowCount: 8500 },
-  { taskNo: 'EXP-003', taskName: '三包索赔明细_2026Q2', format: 'PDF' as const, status: 'QUEUED' as const, createTime: '2026-07-16T11:15:00+08:00', expireTime: '2026-07-23T11:15:00+08:00', rowCount: 3200 },
-  { taskNo: 'EXP-004', taskName: '经销商月度对账_202606', format: 'EXCEL' as const, status: 'FAILED' as const, createTime: '2026-07-15T09:00:00+08:00', expireTime: '2026-07-22T09:00:00+08:00', rowCount: 6800 },
-  { taskNo: 'EXP-005', taskName: '库存周转报表_202607', format: 'EXCEL' as const, status: 'COMPLETED' as const, createTime: '2026-07-14T14:00:00+08:00', expireTime: '2026-07-21T14:00:00+08:00', downloadUrl: '#', rowCount: 9200 },
+export const warrantyBizKpis = {
+  monthWarrantyDone: { value: 285, trend: 5.2 },
+  monthNonWarrantyDone: { value: 1520, trend: 12.8 },
+  warrantyRatio: { value: 15.8, trend: -2.1 },
+  tier2OrderRatio: { value: 32.5, trend: 8.3 },
+};
+
+// 月/季/年 三包与非三包完成量（含二网拆分）
+export const warrantyCompletionTrend = [
+  { period: '2026-01', 三包完成: 260, 非三包完成: 1380, 二网三包: 72, 二网非三包: 420 },
+  { period: '2026-02', 三包完成: 230, 非三包完成: 1250, 二网三包: 58, 二网非三包: 380 },
+  { period: '2026-03', 三包完成: 290, 非三包完成: 1480, 二网三包: 85, 二网非三包: 460 },
+  { period: '2026-04', 三包完成: 275, 非三包完成: 1420, 二网三包: 80, 二网非三包: 440 },
+  { period: '2026-05', 三包完成: 300, 非三包完成: 1550, 二网三包: 95, 二网非三包: 500 },
+  { period: '2026-06', 三包完成: 280, 非三包完成: 1500, 二网三包: 88, 二网非三包: 480 },
+  { period: '2026-07', 三包完成: 285, 非三包完成: 1520, 二网三包: 90, 二网非三包: 500 },
 ];
+
+// 季度汇总
+export const quarterlyWarranty = [
+  { quarter: 'Q1', 三包完成: 780, 非三包完成: 4110, 二网三包: 215, 二网非三包: 1260 },
+  { quarter: 'Q2', 三包完成: 855, 非三包完成: 4470, 二网三包: 263, 二网非三包: 1420 },
+  { quarter: 'Q3(至7月)', 三包完成: 285, 非三包完成: 1520, 二网三包: 90, 二网非三包: 500 },
+];
+
+// 下单习惯 - 按小时分布
+export const hourlyOrders = [
+  { hour: '0-2时', count: 8 }, { hour: '2-4时', count: 3 }, { hour: '4-6时', count: 5 },
+  { hour: '6-8时', count: 42 }, { hour: '8-10时', count: 128 }, { hour: '10-12时', count: 145 },
+  { hour: '12-14时', count: 95 }, { hour: '14-16时', count: 132 }, { hour: '16-18时', count: 118 },
+  { hour: '18-20时', count: 65 }, { hour: '20-22时', count: 35 }, { hour: '22-24时', count: 15 },
+];
+
+// 下单习惯 - 按周几分布
+export const weeklyOrders = [
+  { day: '周一', count: 135 }, { day: '周二', count: 148 }, { day: '周三', count: 155 },
+  { day: '周四', count: 142 }, { day: '周五', count: 138 }, { day: '周六', count: 72 }, { day: '周日', count: 52 },
+];
+
+// 周边热销（模拟以杭州为中心）
+export const nearbyHotSkus = [
+  { rank: 1, skuCode: 'YD-BP-001', skuName: '前刹车片总成', sales: 320, growth: 15.2, area: '杭州周边' },
+  { rank: 2, skuCode: 'YD-FL-001', skuName: '空气滤芯', sales: 285, growth: 8.5, area: '杭州周边' },
+  { rank: 3, skuCode: 'YD-BT-002', skuName: '石墨烯电池', sales: 250, growth: 22.1, area: '杭州周边' },
+  { rank: 4, skuCode: 'YD-CH-001', skuName: '传动链条', sales: 210, growth: -3.2, area: '杭州周边' },
+  { rank: 5, skuCode: 'YD-MT-002', skuName: '轮毂电机 800W', sales: 185, growth: 12.8, area: '杭州周边' },
+  { rank: 6, skuCode: 'YD-LT-001', skuName: 'LED前大灯总成', sales: 160, growth: 5.5, area: '杭州周边' },
+  { rank: 7, skuCode: 'YD-CT-002', skuName: '正弦波控制器', sales: 145, growth: 18.3, area: '杭州周边' },
+  { rank: 8, skuCode: 'YD-SH-001', skuName: '后减震器', sales: 130, growth: -1.8, area: '杭州周边' },
+  { rank: 9, skuCode: 'YD-TR-001', skuName: '轮胎套装', sales: 115, growth: 7.2, area: '杭州周边' },
+  { rank: 10, skuCode: 'YD-CG-001', skuName: '充电器', sales: 98, growth: 10.5, area: '杭州周边' },
+];
+
+// 区域排行
+export const regionRanking = [
+  { region: '浙江省', orders: 485, amount: 1285000, growth: 12.5, share: 18.2 },
+  { region: '江苏省', orders: 420, amount: 1120000, growth: 8.3, share: 15.8 },
+  { region: '安徽省', orders: 350, amount: 920000, growth: 15.1, share: 13.2 },
+  { region: '河南省', orders: 380, amount: 1010000, growth: 10.8, share: 14.3 },
+  { region: '湖北省', orders: 290, amount: 760000, growth: -2.5, share: 10.9 },
+  { region: '湖南省', orders: 270, amount: 710000, growth: 5.8, share: 10.1 },
+  { region: '四川省', orders: 250, amount: 680000, growth: 18.2, share: 9.4 },
+  { region: '广东省', orders: 215, amount: 580000, growth: -5.2, share: 8.1 },
+];
+
+// 热销SKU TOP20
+export const hotSalesSkus = Array.from({ length: 20 }, (_, i) => {
+  const names = ['前刹车片总成', '空气滤芯', '传动链条', '石墨烯电池', '轮毂电机', 'LED大灯', '控制器', '减震器', '轮胎套装', '充电器', '后视镜', '蓄电池', '机油滤芯', '尾灯总成', '车身外壳', '加强链条', '前减震器', '防眩后视镜', '快充充电器', '电池组'];
+  const suppliers = ['BOSCH', 'MANN', 'DID', '雅迪原厂', '全顺', '欧司朗', '凯利', 'KYB', '正新', 'YUASA'];
+  return {
+    rank: i + 1,
+    skuCode: `YD-XX-${String(i + 1).padStart(3, '0')}`,
+    skuName: names[i],
+    salesVolume: randomInt(120, 450),
+    salesAmount: randomInt(15000, 180000),
+    growth: Math.round(randomInt(-150, 250) / 10) * 10 / 10,
+    supplier: randomPick(suppliers),
+  };
+});
 
 // ========== 对账中心数据 ==========
 
