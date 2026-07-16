@@ -36,11 +36,9 @@ import {
   CheckSquareOutlined,
   SwapOutlined,
   ClockCircleOutlined,
-  TrophyOutlined,
+  RiseOutlined,
   SafetyCertificateOutlined,
-  DownloadOutlined,
   AuditOutlined,
-  WalletOutlined,
   CreditCardOutlined,
   PieChartOutlined,
 } from '@ant-design/icons';
