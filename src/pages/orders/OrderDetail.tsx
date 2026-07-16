@@ -1,9 +1,9 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Descriptions, Table, Tag, Steps, Timeline, Space, Button, Typography, Row, Col, Breadcrumb, Statistic, Divider, Alert } from 'antd';
-import { ArrowLeftOutlined, EnvironmentOutlined, ClockCircleOutlined, CarOutlined, InboxOutlined, ExclamationCircleOutlined, CheckCircleOutlined, TruckOutlined, SplitCellsOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, ClockCircleOutlined, CarOutlined, InboxOutlined, ExclamationCircleOutlined, CheckCircleOutlined, TruckOutlined, SplitCellsOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
-import { mockOrders, mockDeliveryNotes, mockTrackingList, vehicleShippingPlans, supplierETAData, getOperationLogs, mockExceptions } from '../../data/mockData';
+import { mockOrders, mockDeliveryNotes, mockTrackingList, vehicleShippingPlans, supplierETAData, getOperationLogs, mockExceptions, getSplitShipmentData } from '../../data/mockData';
 import { ORDER_STATUS_MAP, BIZ_TYPE_MAP, URGENCY_MAP, FULFILL_METHOD_MAP, ORDER_STATUS_STEPS, EXCEPTION_TYPE_MAP, EXCEPTION_STATUS_MAP } from '../../types';
 import type { OrderItem, OrderStatus } from '../../types';
 
@@ -18,6 +18,7 @@ export default function OrderDetail() {
   const tracking = mockTrackingList.find((t) => t.orderNo === orderNo);
   const operationLogs = order ? getOperationLogs(order) : [];
   const linkedExceptions = mockExceptions.filter((e) => e.orderNo === orderNo);
+  const splitData = order ? getSplitShipmentData(order.orderNo) : null;
 
   if (!order) return (<div style={{ textAlign: 'center', padding: 80 }}><Title level={3} type="secondary">订单未找到</Title><Button type="link" onClick={() => navigate('/orders')}>返回订单列表</Button></div>);
 
@@ -28,15 +29,7 @@ export default function OrderDetail() {
   const shippingMethod = order.shippingMethod;
   const linkedPlan = order.linkedPlanNo ? vehicleShippingPlans.find((p) => p.planNo === order.linkedPlanNo) : undefined;
   const etaData = supplierETAData[order.orderNo] || [];
-  const estimatedShipDate = isUnshipped ? dayjs().add(3, 'day').format('YYYY-MM-DD') : order.createTime.replace('T', ' ').substring(0, 10);
-  const hasShortage = order.shortageFlag;
-
-  // 模拟拆分发货数据（有缺件的已发货订单50%概率为拆分发货）
-  const isSplitShipment = hasShortage && isShipped && (order.orderNo.length % 2 === 0);
-  const mockSplitTracking = isSplitShipment ? {
-    primary: { ...tracking, trackingNo: order.trackingNo || 'SF123456789000', label: '第一批（有货件）', items: order.items.filter((it) => it.shortageQty === 0), status: tracking?.trackStatus || 'IN_TRANSIT' },
-    secondary: { trackingNo: `SF${String(order.orderNo.length * 999999)}`, label: '第二批（补缺件）', items: order.items.filter((it) => it.shortageQty > 0).map((it) => ({ ...it, quantity: it.shortageQty })), status: isShipped ? 'IN_TRANSIT' : 'PENDING' },
-  } : null;
+  const estimatedShipDate = dayjs().add(isUnshipped ? 3 : 0, 'day').format('YYYY-MM-DD');
 
   const itemColumns: ColumnsType<OrderItem> = [
     { title: 'SKU编码', dataIndex: 'skuCode', width: 130, render: (c: string) => <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{c}</span> },
@@ -51,23 +44,22 @@ export default function OrderDetail() {
     <div>
       <Breadcrumb style={{ marginBottom: 16 }} items={[{ title: <a onClick={() => navigate('/orders')}>订单管理</a> }, { title: `详情 ${order.orderNo}` }]} />
 
-      {/* 头部信息卡 + 状态进度条 */}
+      {/* 头部 + 状态进度条 */}
       <Card style={{ marginBottom: 16 }}>
         <Space size="large" align="start">
           <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/orders')} style={{ marginTop: 4 }} />
           <div>
             <Title level={4} style={{ margin: 0 }}>
               订单 {order.orderNo}
-              {isException ? <Tag color="error" style={{ marginLeft: 12 }}>异常</Tag> : order.status === 'COMPLETED' ? <Tag color="success" style={{ marginLeft: 12 }}>已完成</Tag> : <Tag color="processing" style={{ marginLeft: 12 }}>进行中</Tag>}
-              <Tag color={shippingMethod === 'WITH_VEHICLE' ? '#7C3AED' : '#0284C7'} style={{ marginLeft: 8 }}>
-                {shippingMethod === 'WITH_VEHICLE' ? <><CarOutlined /> 随车</> : <><InboxOutlined /> 非随</>}
-              </Tag>
+              {isException ? <Tag color="error">异常</Tag> : order.status === 'COMPLETED' ? <Tag color="success">已完成</Tag> : <Tag color="processing">进行中</Tag>}
+              <Tag color={shippingMethod === 'WITH_VEHICLE' ? '#7C3AED' : '#0284C7'}>{shippingMethod === 'WITH_VEHICLE' ? <><CarOutlined /> 随车</> : <><InboxOutlined /> 非随</>}</Tag>
+              {order.shortageFlag && <Tag color="error">缺件</Tag>}
+              {splitData && <Tag color="orange" icon={<SplitCellsOutlined />}>拆分发货</Tag>}
             </Title>
             <Space size={16} style={{ marginTop: 8 }}>
               <Text type="secondary">经销商: {order.dealerName}</Text>
               <Text type="secondary">下单: {order.createTime.replace('T', ' ').substring(0, 16)}</Text>
               <Tag color={URGENCY_MAP[order.urgencyLevel].color}>{URGENCY_MAP[order.urgencyLevel].label}</Tag>
-              {hasShortage && <Tag color="error">缺件订单</Tag>}
             </Space>
           </div>
         </Space>
@@ -77,84 +69,134 @@ export default function OrderDetail() {
         </div>
       </Card>
 
-      {/* 物流/发货信息 — 移到状态流程下方 */}
+      {/* ========== 物流/发货 + 缺件ETA（统一放状态流程下方） ========== */}
       {(isShipped || isUnshipped) && (
         <Card title={<Space><TruckOutlined />发货与物流信息</Space>} style={{ marginBottom: 16 }}>
-          {isShipped && shippingMethod === 'WITH_VEHICLE' && linkedPlan && (
-            <Alert message={<Space><CarOutlined />随车发货 — {linkedPlan.planNo}</Space>} description={`车型: ${linkedPlan.vehicleModel} · ${linkedPlan.vehicleCount}辆 · 路线: ${linkedPlan.route} · 司机: ${linkedPlan.driver} · 发车: ${linkedPlan.plannedShipDate}`} type="info" showIcon={false} style={{ marginBottom: 12 }} />
-          )}
-          {isShipped && shippingMethod === 'STANDALONE' && (
-            <Alert message={<Space><InboxOutlined />非随发货（独立快递）</Space>} description={`物流公司: ${order.logisticsCompany || '-'} · 运单号: ${order.trackingNo || '-'}`} type="info" showIcon={false} style={{ marginBottom: 12 }} />
-          )}
-
-          {/* 拆分发货 */}
-          {isSplitShipment && mockSplitTracking && (
-            <div style={{ marginBottom: 12 }}>
-              <Alert message={<Space><SplitCellsOutlined />拆分发货</Space>} description="该订单存在缺件，分两批发货：第一批发有货商品，第二批补发缺件" type="warning" showIcon style={{ marginBottom: 8 }} />
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Card size="small" title={<Tag color="blue">{mockSplitTracking.primary.label}</Tag>} style={{ background: '#F6FFED' }}>
-                    <Descriptions column={1} size="small"><Descriptions.Item label="运单号"><span style={{ fontFamily: 'monospace' }}>{mockSplitTracking.primary.trackingNo}</span></Descriptions.Item><Descriptions.Item label="状态"><Tag color="#16A34A">{isShipped ? '运输中' : '待发货'}</Tag></Descriptions.Item><Descriptions.Item label="件数">{mockSplitTracking.primary.items.reduce((s, i) => s + i.quantity, 0)} 件</Descriptions.Item></Descriptions>
-                  </Card>
-                </Col>
-                <Col span={12}>
-                  <Card size="small" title={<Tag color="orange">{mockSplitTracking.secondary.label}</Tag>} style={{ background: '#FFFBE6' }}>
-                    <Descriptions column={1} size="small"><Descriptions.Item label="运单号"><span style={{ fontFamily: 'monospace' }}>{mockSplitTracking.secondary.trackingNo}</span></Descriptions.Item><Descriptions.Item label="状态"><Tag color="#F59E0B">补发中</Tag></Descriptions.Item><Descriptions.Item label="件数">{mockSplitTracking.secondary.items.reduce((s, i) => s + i.quantity, 0)} 件</Descriptions.Item></Descriptions>
-                  </Card>
-                </Col>
-              </Row>
-            </div>
+          {/* 随车/非随标签 */}
+          {isShipped && (
+            <Alert
+              message={shippingMethod === 'WITH_VEHICLE'
+                ? <Space><CarOutlined />随车发货 — {linkedPlan?.planNo || '未关联计划'} · {linkedPlan?.vehicleModel || ''} · {linkedPlan?.route || ''}</Space>
+                : <Space><InboxOutlined />非随发货 — {order.logisticsCompany || '-'} · 运单号: {order.trackingNo || '-'}</Space>}
+              type="info" showIcon={false} style={{ marginBottom: 12 }} />
           )}
 
-          {/* 发货统计卡片 */}
-          <Divider style={{ margin: '12px 0' }} />
-          <Row gutter={16}>
-            <Col span={isShipped ? 8 : 12}><Statistic title="发货时间" value={isShipped ? order.createTime.replace('T', ' ').substring(0, 10) : estimatedShipDate} prefix={<CheckCircleOutlined />} valueStyle={{ fontSize: 16, color: isShipped ? '#16A34A' : '#FF6B00' }} /></Col>
-            {isShipped ? (
-              <Col span={8}>
-                {tracking?.trackStatus === 'DELIVERED'
-                  ? <Statistic title="签收时间" value={(tracking?.nodes[tracking.nodes.length - 1]?.time || '').replace('T', ' ').substring(0, 10)} prefix={<CheckCircleOutlined />} valueStyle={{ fontSize: 16, color: '#16A34A' }} />
-                  : <Statistic title="预计到货时间" value="—" prefix={<ClockCircleOutlined />} valueStyle={{ fontSize: 16, color: '#8C8C8C' }} />
-                }
-              </Col>
-            ) : (
-              <Col span={12}><Statistic title="预计到货时间" value="—" prefix={<EnvironmentOutlined />} valueStyle={{ fontSize: 16, color: '#8C8C8C' }} /></Col>
-            )}
-            <Col span={8}><Statistic title="发货方式" value={shippingMethod === 'WITH_VEHICLE' ? '随车' : '非随'} prefix={shippingMethod === 'WITH_VEHICLE' ? <CarOutlined /> : <InboxOutlined />} valueStyle={{ fontSize: 16 }} /></Col>
-            {isSplitShipment && <Col span={24} style={{ marginTop: 8 }}><Tag color="orange" icon={<SplitCellsOutlined />}>拆分发货 — 该订单分两个运单发出</Tag></Col>}
-          </Row>
-        </Card>
-      )}
+          {/* 拆分发货详情 */}
+          {splitData && (
+            <Alert message={<Space><SplitCellsOutlined />拆分发货 — 有货件先行，缺件补发随后</Space>} type="warning" showIcon style={{ marginBottom: 12 }}
+              description={
+                <Row gutter={16} style={{ marginTop: 8 }}>
+                  <Col span={12}>
+                    <Card size="small" style={{ background: '#F6FFED' }}>
+                      <Text strong style={{ color: '#16A34A' }}>{splitData.primary.label}</Text>
+                      <Descriptions column={1} size="small" style={{ marginTop: 4 }}>
+                        <Descriptions.Item label="运单号"><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{splitData.primary.trackingNo}</span></Descriptions.Item>
+                        <Descriptions.Item label="状态"><Tag color={splitData.primary.status === 'DELIVERED' ? '#16A34A' : '#FF6B00'}>{splitData.primary.status === 'DELIVERED' ? '已签收' : '运输中'}</Tag></Descriptions.Item>
+                        <Descriptions.Item label="件数">{splitData.primary.totalQty} 件</Descriptions.Item>
+                      </Descriptions>
+                    </Card>
+                  </Col>
+                  <Col span={12}>
+                    <Card size="small" style={{ background: '#FFFBE6' }}>
+                      <Text strong style={{ color: '#D97706' }}>{splitData.secondary.label}</Text>
+                      <Descriptions column={1} size="small" style={{ marginTop: 4 }}>
+                        <Descriptions.Item label="运单号"><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{splitData.secondary.trackingNo}</span></Descriptions.Item>
+                        <Descriptions.Item label="状态"><Tag color={splitData.secondary.status === 'DELIVERED' ? '#16A34A' : splitData.secondary.status === 'IN_TRANSIT' ? '#FF6B00' : '#F59E0B'}>{splitData.secondary.status === 'DELIVERED' ? '已签收' : splitData.secondary.status === 'IN_TRANSIT' ? '运输中' : '待补发'}</Tag></Descriptions.Item>
+                        <Descriptions.Item label="件数">{splitData.secondary.totalQty} 件</Descriptions.Item>
+                      </Descriptions>
+                    </Card>
+                  </Col>
+                </Row>
+              } />
+          )}
 
-      <Row gutter={16}>
-        <Col span={17}>
-          {/* 商品明细 — 不按VIN聚合，仅有关联VIN时显示 */}
-          <Card title="商品明细" style={{ marginBottom: 16 }}>
-            {order.vinCodes.length > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>关联车架号：</Text>
-                {order.vinCodes.map((vin) => <Tag key={vin} color="purple" style={{ fontFamily: 'monospace', fontSize: 11, marginBottom: 4 }}>{vin}</Tag>)}
-              </div>
-            )}
-            <Table rowKey="skuCode" columns={itemColumns} dataSource={order.items} pagination={false} size="middle"
-              summary={() => (<Table.Summary.Row><Table.Summary.Cell index={0} colSpan={3}><Text strong>合计</Text></Table.Summary.Cell><Table.Summary.Cell index={1} align="center"><Text strong>{order.items.reduce((s, i) => s + i.quantity, 0)}</Text></Table.Summary.Cell><Table.Summary.Cell index={2} align="center" /><Table.Summary.Cell index={3} align="right"><Text strong style={{ color: '#FF6B00', fontSize: 16 }}>¥{order.totalAmount.toLocaleString()}</Text></Table.Summary.Cell></Table.Summary.Row>)} />
-          </Card>
-
-          {/* 未发订单：缺件ETA */}
+          {/* 未发货缺件ETA — 挪到上面 */}
           {isUnshipped && etaData.length > 0 && (
-            <Card title={<Space><ClockCircleOutlined />缺件配件到货预估</Space>} style={{ marginBottom: 16, borderLeft: '3px solid #F59E0B' }}>
+            <Card title={<Space><ClockCircleOutlined />缺件配件到货预估</Space>} size="small" style={{ marginBottom: 12, borderLeft: '3px solid #F59E0B' }}>
               <Table size="small" rowKey="skuCode" pagination={false} dataSource={etaData}
                 columns={[
                   { title: 'SKU', dataIndex: 'skuCode', width: 100, render: (c: string) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{c}</span> },
                   { title: '名称', dataIndex: 'skuName', width: 120 },
                   { title: '缺少数', dataIndex: 'shortageQty', width: 60, align: 'center', render: (v: number) => <Tag color="error">{v}</Tag> },
                   { title: '供应商', dataIndex: 'supplier', width: 80 },
-                  { title: '预计到货', dataIndex: 'estimatedArrival', width: 140, render: (t: string) => <span style={{ fontWeight: 500 }}>{t.replace('T', ' ').substring(0, 16)}</span> },
+                  { title: '预计到货', dataIndex: 'estimatedArrival', width: 140, render: (t: string) => <span style={{ fontWeight: 500, color: '#F59E0B' }}>{t.replace('T', ' ').substring(0, 16)}</span> },
                   { title: '物流单号', dataIndex: 'reason', width: 90, render: () => <Text type="secondary">—</Text> },
                 ]} />
-              <Alert message="以上配件由供应商发货至基地仓库，到货后方可拣货发出；或可选择拆分发货，有货件先行发出" type="warning" showIcon style={{ marginTop: 12 }} />
+              <Alert message="以上配件由供应商发货至基地仓库，到货后方可拣货发出。也可选择拆分发货，有货件先行。" type="warning" showIcon style={{ marginTop: 8 }} />
             </Card>
           )}
+
+          {/* 统计行 — 4个维度同行 */}
+          <Divider style={{ margin: '12px 0' }} />
+          <Row gutter={16}>
+            <Col span={6}>
+              <Statistic title="发货时间" value={isShipped ? order.createTime.replace('T', ' ').substring(0, 10) : estimatedShipDate}
+                prefix={<CheckCircleOutlined />} valueStyle={{ fontSize: 16, color: isShipped ? '#16A34A' : '#FF6B00' }} />
+            </Col>
+            <Col span={6}>
+              {isShipped && tracking?.trackStatus === 'DELIVERED'
+                ? <Statistic title="签收时间" value={(tracking?.nodes[tracking.nodes.length - 1]?.time || '').replace('T', ' ').substring(0, 10)} prefix={<CheckCircleOutlined />} valueStyle={{ fontSize: 16, color: '#16A34A' }} />
+                : <Statistic title="预计到货时间" value="—" prefix={<ClockCircleOutlined />} valueStyle={{ fontSize: 16, color: '#8C8C8C' }} />
+              }
+            </Col>
+            <Col span={6}>
+              <Statistic title="发货方式" value={shippingMethod === 'WITH_VEHICLE' ? '随车' : '非随'}
+                prefix={shippingMethod === 'WITH_VEHICLE' ? <CarOutlined /> : <InboxOutlined />} valueStyle={{ fontSize: 16 }} />
+            </Col>
+            <Col span={6}>
+              <Statistic title="拆分单数" value={splitData ? 2 : 1}
+                prefix={splitData ? <SplitCellsOutlined /> : <InboxOutlined />}
+                valueStyle={{ fontSize: 16, color: splitData ? '#FF6B00' : '#8C8C8C' }} />
+            </Col>
+          </Row>
+        </Card>
+      )}
+
+      {/* 主体：商品明细 + 拆分物流状态 */}
+      <Row gutter={16}>
+        <Col span={17}>
+          <Card title="商品明细" style={{ marginBottom: 16 }}>
+            {order.vinCodes.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>关联车架号：</Text>
+                {order.vinCodes.map((vin) => <Tag key={vin} color="purple" style={{ fontFamily: 'monospace', fontSize: 11 }}>{vin}</Tag>)}
+              </div>
+            )}
+
+            {/* 拆分发货：按批次分组显示 */}
+            {splitData ? (
+              <div>
+                <Table rowKey="skuCode" size="small" pagination={false}
+                  title={() => <Tag color="blue">{splitData.primary.label}</Tag>}
+                  dataSource={splitData.primary.items}
+                  columns={[
+                    { title: 'SKU', dataIndex: 'skuCode', width: 110, render: (c: string) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{c}</span> },
+                    { title: '商品名称', dataIndex: 'skuName', width: 200 },
+                    { title: '数量', dataIndex: 'quantity', width: 60, align: 'center' },
+                    { title: '物流状态', key: 'logistics', width: 100, render: () => <Tag color={splitData.primary.status === 'DELIVERED' ? '#16A34A' : '#FF6B00'}>{splitData.primary.status === 'DELIVERED' ? '已签收' : '运输中'}</Tag> },
+                  ]} />
+                <Table rowKey="skuCode" size="small" pagination={false} style={{ marginTop: 8 }}
+                  title={() => <Tag color="orange">{splitData.secondary.label}</Tag>}
+                  dataSource={splitData.secondary.items}
+                  columns={[
+                    { title: 'SKU', dataIndex: 'skuCode', width: 110, render: (c: string) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{c}</span> },
+                    { title: '商品名称', dataIndex: 'skuName', width: 200 },
+                    { title: '数量', dataIndex: 'quantity', width: 60, align: 'center' },
+                    { title: '物流状态', key: 'logistics', width: 100, render: () => <Tag color={splitData.secondary.status === 'DELIVERED' ? '#16A34A' : splitData.secondary.status === 'IN_TRANSIT' ? '#FF6B00' : '#F59E0B'}>{splitData.secondary.status === 'DELIVERED' ? '已签收' : splitData.secondary.status === 'IN_TRANSIT' ? '运输中' : '待补发'}</Tag> },
+                  ]} />
+              </div>
+            ) : (
+              <Table rowKey="skuCode" columns={itemColumns} dataSource={order.items} pagination={false} size="middle" />
+            )}
+
+            {/* 合计行 */}
+            <Divider style={{ margin: '8px 0' }} />
+            <div style={{ textAlign: 'right' }}>
+              <Text type="secondary">合计：{order.items.reduce((s, i) => s + i.quantity, 0)} 件 · </Text>
+              <Text strong style={{ color: '#FF6B00', fontSize: 16 }}>¥{order.totalAmount.toLocaleString()}</Text>
+              {splitData && <Tag color="orange" style={{ marginLeft: 8 }}>分{splitData.primary.totalQty + splitData.secondary.totalQty}件 / 2批</Tag>}
+            </div>
+          </Card>
         </Col>
 
         <Col span={7}>
@@ -165,7 +207,7 @@ export default function OrderDetail() {
               <Descriptions.Item label="时效等级"><Tag color={URGENCY_MAP[order.urgencyLevel].color}>{URGENCY_MAP[order.urgencyLevel].label}</Tag></Descriptions.Item>
               <Descriptions.Item label="履约方式">{FULFILL_METHOD_MAP[order.fulfillMethod]}</Descriptions.Item>
               <Descriptions.Item label="基地来源">{order.baseSource}</Descriptions.Item>
-              <Descriptions.Item label="缺件">{order.shortageFlag ? <Tag color="error">是{isSplitShipment ? '(已拆分发货)' : ''}</Tag> : <Tag color="success">否</Tag>}</Descriptions.Item>
+              <Descriptions.Item label="缺件">{order.shortageFlag ? <Tag color="error">是{splitData ? '(已拆分)' : ''}</Tag> : <Tag color="success">否</Tag>}</Descriptions.Item>
             </Descriptions>
           </Card>
           <Card title="收货信息" size="small" style={{ marginBottom: 16 }}>
@@ -188,7 +230,7 @@ export default function OrderDetail() {
           {deliveryNote && (
             <Card title="电子交货单" size="small" style={{ marginBottom: 16, borderLeft: '3px solid #FF6B00' }}>
               <Descriptions column={1} size="small" colon={false}>
-                <Descriptions.Item label="交货单号"><span style={{ fontFamily: 'monospace', fontWeight: 500 }}>{deliveryNote.noteNo}</span></Descriptions.Item>
+                <Descriptions.Item label="交货单号"><span style={{ fontFamily: 'monospace' }}>{deliveryNote.noteNo}</span></Descriptions.Item>
                 <Descriptions.Item label="仓库">{deliveryNote.warehouseName}</Descriptions.Item>
                 <Descriptions.Item label="状态"><Tag color={deliveryNote.status === 'RECEIVED' ? '#16A34A' : '#FF6B00'}>{deliveryNote.status === 'GENERATED' ? '已生成' : deliveryNote.status === 'SHIPPED' ? '已发货' : '已签收'}</Tag></Descriptions.Item>
                 <Descriptions.Item label="总件数">{deliveryNote.totalQty} 件</Descriptions.Item>

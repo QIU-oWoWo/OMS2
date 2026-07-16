@@ -543,6 +543,43 @@ export function generateInventoryShares(): InventoryShareDTO[] {
 
 export const mockInventoryShares = generateInventoryShares();
 
+// ========== 拆分发货数据（有缺件的已发货订单） ==========
+
+export function getSplitShipmentData(orderNo: string) {
+  const order = mockOrders.find((o) => o.orderNo === orderNo);
+  if (!order || !order.shortageFlag || !['IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(order.status)) return null;
+  // 确定性判断：订单号长度偶数 = 拆分发货
+  const isSplit = orderNo.replace(/[^0-9]/g, '').length % 2 === 0;
+  if (!isSplit) return null;
+
+  const availableItems = order.items.filter((it) => it.shortageQty === 0);
+  const shortageItems = order.items.filter((it) => it.shortageQty > 0).map((it) => ({ ...it, quantity: it.shortageQty }));
+
+  if (availableItems.length === 0 || shortageItems.length === 0) return null;
+
+  const primaryTracking = `SF${String(Math.abs(orderNo.split('').reduce((s, c) => s + c.charCodeAt(0), 0))).padStart(12, '0')}`;
+  const secondaryTracking = `SF${String(Math.abs(orderNo.split('').reduce((s, c) => s + c.charCodeAt(0) * 2, 0))).padStart(12, '0')}`;
+
+  return {
+    primary: {
+      trackingNo: primaryTracking,
+      label: '第一批（有货件）',
+      items: availableItems,
+      totalQty: availableItems.reduce((s, i) => s + i.quantity, 0),
+      status: order.status === 'DELIVERED' ? 'DELIVERED' as const : 'IN_TRANSIT' as const,
+      shipTime: order.createTime,
+    },
+    secondary: {
+      trackingNo: secondaryTracking,
+      label: '第二批（补缺件）',
+      items: shortageItems,
+      totalQty: shortageItems.reduce((s, i) => s + i.quantity, 0),
+      status: order.status === 'DELIVERED' ? 'DELIVERED' as const : order.status === 'IN_TRANSIT' ? 'IN_TRANSIT' as const : 'PENDING' as const,
+      shipTime: formatDate(new Date(new Date(order.createTime).getTime() + randomInt(24, 72) * 3600000)),
+    },
+  };
+}
+
 // ========== 仪表盘统计数据 ==========
 
 export const dashboardStats = {
@@ -934,7 +971,7 @@ mockOrders.filter((o) => ['PENDING_REVIEW', 'SCHEDULING', 'PICKING', 'READY_TO_S
       skuCode: it.skuCode, skuName: it.skuName,
       shortageQty: it.shortageQty,
       supplier: randomPick(['BOSCH', 'MANN', 'DID', '博世', '全顺', '凯利', '雅迪原厂']),
-      estimatedArrival: formatDate(new Date(2026, 6, randomInt(17, 20), randomInt(8, 18))),
+      estimatedArrival: formatDate(new Date(2026, 6, randomInt(17, 19), randomInt(8, 18))), // 供应商到货早于预计发货
       reason: randomPick(['SUPPLIER_PENDING', 'IN_TRANSIT', 'CUSTOMS', 'PRODUCTION']),
     }));
   }
@@ -966,7 +1003,8 @@ export function getOperationLogs(order: typeof mockOrders[number]) {
 
   return baseActions.map((a, i) => {
     const op = ops[(i + order.orderNo.length) % ops.length];
-    const logDate = new Date(2026, 6, 16 - (baseActions.length - i), randomInt(8, 18), randomInt(0, 59));
+    const baseTime = new Date(order.createTime);
+    const logDate = new Date(baseTime.getTime() + i * randomInt(2, 8) * 3600000); // 每个步骤间隔2-8小时
     return { time: formatDate(logDate), operator: op.name, role: op.role, action: a.action, remark: a.remark };
   }).sort((a, b) => b.time.localeCompare(a.time));
 }
