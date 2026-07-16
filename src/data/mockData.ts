@@ -1,7 +1,7 @@
 import type {
   OrderDTO, AppointmentDTO, ExceptionDTO, OperationLog,
   CustomOrderDTO, Call400DTO, TrackingDTO, TrackingNode, ProductDTO,
-  TrackStatus, InventoryShareDTO,
+  TrackStatus, InventoryShareDTO, ProductTag,
 } from '../types';
 
 // ========== 雅迪配件商品池 ==========
@@ -462,6 +462,14 @@ export function generateProducts(): ProductDTO[] {
       certificateTemplateId: i % 3 === 0 ? `CERT-${String(i + 1).padStart(3, '0')}` : '',
       status: statuses[i % statuses.length],
       updateTime: formatDate(updateDate),
+      tags: (i % 5 === 0 ? ['NEW' as ProductTag] : i % 5 === 1 ? ['HOT' as ProductTag] : i % 5 === 2 ? ['PROMOTION' as ProductTag] : i % 5 === 3 ? ['NEW' as ProductTag, 'HOT' as ProductTag] : ['NONE' as ProductTag]),
+      compatibleVins: Array.from({ length: randomInt(2, 6) }, () => randomPick(vinPool)),
+      baseInventory: [
+        { baseName: '华东仓', stock: randomInt(50, 500), reserved: randomInt(5, 50), available: randomInt(40, 450) },
+        { baseName: '华南仓', stock: randomInt(30, 400), reserved: randomInt(0, 40), available: randomInt(30, 360) },
+        { baseName: '华北仓', stock: randomInt(20, 300), reserved: randomInt(0, 30), available: randomInt(20, 270) },
+        { baseName: '西南仓', stock: randomInt(10, 200), reserved: randomInt(0, 20), available: randomInt(10, 180) },
+      ],
     };
   });
 }

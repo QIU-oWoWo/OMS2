@@ -317,7 +317,19 @@ export interface ProductDTO {
   certificateTemplateId: string;
   status: ProductStatus;
   updateTime: string;
+  tags: ProductTag[];
+  compatibleVins: string[];
+  baseInventory: { baseName: string; stock: number; reserved: number; available: number }[];
 }
+
+export type ProductTag = 'NEW' | 'HOT' | 'PROMOTION' | 'NONE';
+
+export const PRODUCT_TAG_MAP: Record<ProductTag, { label: string; color: string }> = {
+  NEW: { label: '新品', color: '#16A34A' },
+  HOT: { label: '热销品', color: '#E11D48' },
+  PROMOTION: { label: '政策促销', color: '#FF6B00' },
+  NONE: { label: '无', color: '#8C8C8C' },
+};
 
 // ========== 库存共享相关类型 ==========
 

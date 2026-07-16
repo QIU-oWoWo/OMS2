@@ -12,8 +12,8 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { mockProducts } from '../../data/mockData';
-import { PRODUCT_STATUS_MAP } from '../../types';
-import type { ProductDTO, ProductStatus } from '../../types';
+import { PRODUCT_STATUS_MAP, PRODUCT_TAG_MAP } from '../../types';
+import type { ProductDTO, ProductStatus, ProductTag } from '../../types';
 
 const { Title, Text } = Typography;
 const { Panel } = Collapse;
@@ -61,7 +61,7 @@ export default function ProductList() {
   const [visibleCols, setVisibleCols] = useState(ALL_COLS.map((c) => c.key));
   const [activeDrawer, setActiveDrawer] = useState<RuleKey | null>(null);
   const [filters, setFilters] = useState({
-    skuCode: '', skuName: '', category: '', statuses: [] as string[], baseSource: '',
+    skuCode: '', skuName: '', category: '', statuses: [] as string[], baseSource: '', tags: [] as string[],
   });
 
   // ---- 各规则状态 ----
@@ -106,6 +106,7 @@ export default function ProductList() {
     if (filters.category) result = result.filter((p) => p.categoryPath.includes(filters.category));
     if (filters.statuses.length > 0) result = result.filter((p) => filters.statuses.includes(p.status));
     if (filters.baseSource) result = result.filter((p) => p.baseSource === filters.baseSource);
+    if (filters.tags.length > 0) result = result.filter((p) => p.tags.some((t) => filters.tags.includes(t)));
     return result;
   }, [filters]);
 
@@ -128,9 +129,10 @@ export default function ProductList() {
       { title: '基准价', dataIndex: 'basePrice', key: 'basePrice', width: 110, align: 'right', sorter: (a, b) => a.basePrice - b.basePrice, render: (v: number) => <span style={{ fontWeight: 500 }}>¥{v.toLocaleString()}</span> },
       { title: '基地来源', dataIndex: 'baseSource', key: 'baseSource', width: 100, sorter: (a, b) => a.baseSource.localeCompare(b.baseSource) },
       { title: '适配车型数', dataIndex: 'vehicleModelCount', key: 'vehicleModelCount', width: 100, align: 'center', sorter: (a, b) => a.vehicleModelCount - b.vehicleModelCount },
-      { title: '状态', dataIndex: 'status', key: 'status', width: 80, render: (s: ProductStatus) => { const info = PRODUCT_STATUS_MAP[s]; return <Tag color={info?.color}>{info?.label}</Tag>; } },
+      { title: '状态', dataIndex: 'status', key: 'status', width: 70, render: (s: ProductStatus) => { const info = PRODUCT_STATUS_MAP[s]; return <Tag color={info?.color}>{info?.label}</Tag>; } },
+      { title: '标签', dataIndex: 'tags', key: 'tags', width: 140, render: (tags: ProductTag[]) => tags.length === 0 || tags[0] === 'NONE' ? <Text type="secondary">-</Text> : <Space size={4}>{tags.map((t) => <Tag key={t} color={PRODUCT_TAG_MAP[t]?.color} style={{ fontSize: 11 }}>{PRODUCT_TAG_MAP[t]?.label}</Tag>)}</Space> },
       { title: '更新时间', dataIndex: 'updateTime', key: 'updateTime', width: 160, sorter: (a, b) => a.updateTime.localeCompare(b.updateTime), render: (t: string) => t.replace('T', ' ').substring(0, 16) },
-      { title: '操作', key: 'actions', fixed: 'right' as const, width: 100, render: (_: unknown, record: ProductDTO) => (<a onClick={(e) => { e.stopPropagation(); navigate(`/products/${record.skuCode}`); }} style={{ color: '#FF6B00' }}>编辑</a>) },
+      { title: '操作', key: 'actions', fixed: 'right' as const, width: 100, render: (_: unknown, record: ProductDTO) => (<a onClick={(e) => { e.stopPropagation(); navigate(`/products/${record.skuCode}/edit`); }} style={{ color: '#FF6B00' }}>编辑</a>) },
     ];
     return all.filter((c) => visibleCols.includes(c.key as string));
   }, [navigate, visibleCols]);
@@ -386,7 +388,8 @@ export default function ProductList() {
           <Col span={4}><Input placeholder="分类搜索" value={filters.category} onChange={(e) => setFilters((f) => ({ ...f, category: e.target.value }))} allowClear /></Col>
           <Col span={3}><Select mode="multiple" placeholder="状态" style={{ width: '100%' }} value={filters.statuses} onChange={(vals) => setFilters((f) => ({ ...f, statuses: vals }))} options={Object.entries(PRODUCT_STATUS_MAP).map(([k, v]) => ({ value: k, label: v.label }))} maxTagCount={1} /></Col>
           <Col span={3}><Select placeholder="基地来源" style={{ width: '100%' }} value={filters.baseSource || undefined} onChange={(val) => setFilters((f) => ({ ...f, baseSource: val || '' }))} allowClear options={['华东基地', '华南基地', '华北基地', '西南基地'].map((b) => ({ value: b, label: b }))} /></Col>
-          <Col span={4}>
+          <Col span={3}><Select mode="multiple" placeholder="商品标签" style={{ width: '100%' }} value={filters.tags} onChange={(v) => setFilters((f) => ({ ...f, tags: v }))} options={Object.entries(PRODUCT_TAG_MAP).map(([k, v]) => ({ value: k, label: v.label }))} maxTagCount={1} /></Col>
+          <Col span={3}>
             <Dropdown menu={{ items: ALL_COLS.map((col) => ({ key: col.key, label: <Checkbox checked={visibleCols.includes(col.key)}>{col.title}</Checkbox>, onClick: () => setVisibleCols((p) => p.includes(col.key) ? p.filter((k) => k !== col.key) : [...p, col.key]) })) }} trigger={['click']}>
               <Button icon={<SettingOutlined />}>列设置</Button>
             </Dropdown>
@@ -413,6 +416,7 @@ export default function ProductList() {
           scroll={{ x: 1400 }} size="middle"
           pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50', '100'], showTotal: (total) => `共 ${total} 条` }}
           onRow={(r) => ({ onClick: () => navigate(`/products/${r.skuCode}`) })} />
+          {/* Note: Row click goes to ProductDetail, edit button in detail page */}
       </Card>
     </div>
   );

@@ -17,6 +17,7 @@ import LogisticsList from './pages/exceptions/LogisticsList';
 import LogisticsDetail from './pages/exceptions/LogisticsDetail';
 import ProductList from './pages/products/ProductList';
 import ProductEdit from './pages/products/ProductEdit';
+import ProductDetail from './pages/products/ProductDetail';
 import InventoryShare from './pages/products/InventoryShare';
 import OrderForecast from './pages/analytics/OrderForecast';
 import CustomerBehavior from './pages/analytics/CustomerBehavior';
@@ -55,7 +56,8 @@ function App() {
               <Route path="/products" element={<ProductList />} />
               <Route path="/products/new" element={<ProductEdit />} />
               <Route path="/products/inventory-share" element={<InventoryShare />} />
-              <Route path="/products/:skuCode" element={<ProductEdit />} />
+              <Route path="/products/:skuCode/edit" element={<ProductEdit />} />
+              <Route path="/products/:skuCode" element={<ProductDetail />} />
               {/* 数据分析 */}
               <Route path="/analytics/order-forecast" element={<OrderForecast />} />
               <Route path="/analytics/customer-behavior" element={<CustomerBehavior />} />
