@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Descriptions, Table, Tag, Steps, Timeline, Space, Button, Typography, Row, Col, Breadcrumb, Tooltip, Alert, Statistic, Divider } from 'antd';
 import { ArrowLeftOutlined, EnvironmentOutlined, ClockCircleOutlined, CarOutlined, InboxOutlined, ExclamationCircleOutlined, CheckCircleOutlined, TruckOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import dayjs from 'dayjs';
 import { mockOrders, mockDeliveryNotes, mockTrackingList, vehicleShippingPlans, supplierETAData, getOperationLogs, mockExceptions } from '../../data/mockData';
 import { ORDER_STATUS_MAP, BIZ_TYPE_MAP, URGENCY_MAP, FULFILL_METHOD_MAP, ORDER_STATUS_STEPS, EXCEPTION_TYPE_MAP, EXCEPTION_STATUS_MAP } from '../../types';
 import type { OrderItem, OrderStatus } from '../../types';
