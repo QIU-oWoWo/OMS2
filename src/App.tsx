@@ -7,7 +7,14 @@ import Dashboard from './pages/Dashboard';
 import OrderList from './pages/orders/OrderList';
 import OrderDetail from './pages/orders/OrderDetail';
 import AppointmentList from './pages/orders/AppointmentList';
+import CustomOrderList from './pages/orders/CustomOrderList';
+import CustomOrderDetail from './pages/orders/CustomOrderDetail';
+import Call400List from './pages/orders/Call400List';
 import ExceptionList from './pages/exceptions/ExceptionList';
+import LogisticsList from './pages/exceptions/LogisticsList';
+import LogisticsDetail from './pages/exceptions/LogisticsDetail';
+import ProductList from './pages/products/ProductList';
+import ProductEdit from './pages/products/ProductEdit';
 
 function App() {
   return (
@@ -17,17 +24,25 @@ function App() {
           <Routes>
             <Route element={<MainLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
+              {/* 订单管理 */}
               <Route path="/orders" element={<OrderList />} />
               <Route path="/orders/:orderNo" element={<OrderDetail />} />
               <Route path="/orders/appointments" element={<AppointmentList />} />
-              <Route path="/exceptions" element={<ExceptionList />} />
-              <Route path="/orders/custom" element={<PlaceholderPage title="定制订单" />} />
-              <Route path="/orders/call400" element={<PlaceholderPage title="400免费订单" />} />
+              <Route path="/orders/custom" element={<CustomOrderList />} />
+              <Route path="/orders/custom/:customNo" element={<CustomOrderDetail />} />
+              <Route path="/orders/call400" element={<Call400List />} />
               <Route path="/orders/invoices" element={<PlaceholderPage title="开票管理" />} />
+              {/* 异常中心 */}
+              <Route path="/exceptions" element={<ExceptionList />} />
               <Route path="/exceptions/returns" element={<PlaceholderPage title="退换货管理" />} />
-              <Route path="/exceptions/logistics" element={<PlaceholderPage title="运单查询" />} />
+              <Route path="/exceptions/logistics" element={<LogisticsList />} />
+              <Route path="/exceptions/logistics/:trackingNo" element={<LogisticsDetail />} />
               <Route path="/exceptions/sign-off" element={<PlaceholderPage title="签收管理" />} />
-              <Route path="/products" element={<PlaceholderPage title="商品管理" />} />
+              {/* 商品管理 */}
+              <Route path="/products" element={<ProductList />} />
+              <Route path="/products/new" element={<ProductEdit />} />
+              <Route path="/products/:skuCode" element={<ProductEdit />} />
+              {/* 其他 */}
               <Route path="/analytics" element={<PlaceholderPage title="数据分析" />} />
               <Route path="/reconciliation" element={<PlaceholderPage title="对账中心" />} />
               <Route path="/settings" element={<PlaceholderPage title="系统设置" />} />
