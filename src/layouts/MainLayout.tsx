@@ -76,7 +76,6 @@ const menuItems: MenuItem[] = [
     children: [
       { key: '/exceptions', icon: <AlertOutlined />, label: '异常列表' },
       { key: '/exceptions/returns', icon: <FileTextOutlined />, label: '退换货管理' },
-      { key: '/exceptions/logistics', icon: <EnvironmentOutlined />, label: '运单查询' },
       { key: '/exceptions/sign-off', icon: <CheckSquareOutlined />, label: '签收管理' },
     ],
   },

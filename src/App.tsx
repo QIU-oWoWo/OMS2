@@ -13,8 +13,6 @@ import Call400List from './pages/orders/Call400List';
 import VehicleShipping from './pages/orders/VehicleShipping';
 import InvoiceList from './pages/orders/InvoiceList';
 import ExceptionList from './pages/exceptions/ExceptionList';
-import LogisticsList from './pages/exceptions/LogisticsList';
-import LogisticsDetail from './pages/exceptions/LogisticsDetail';
 import ProductList from './pages/products/ProductList';
 import ProductEdit from './pages/products/ProductEdit';
 import ProductDetail from './pages/products/ProductDetail';
@@ -49,8 +47,6 @@ function App() {
               {/* 异常中心 */}
               <Route path="/exceptions" element={<ExceptionList />} />
               <Route path="/exceptions/returns" element={<PlaceholderPage title="退换货管理" />} />
-              <Route path="/exceptions/logistics" element={<LogisticsList />} />
-              <Route path="/exceptions/logistics/:trackingNo" element={<LogisticsDetail />} />
               <Route path="/exceptions/sign-off" element={<PlaceholderPage title="签收管理" />} />
               {/* 商品管理 */}
               <Route path="/products" element={<ProductList />} />
