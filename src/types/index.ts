@@ -67,7 +67,7 @@ export interface AppointmentDTO {
 
 // ========== 异常相关类型 ==========
 
-export type ExceptionType = 'SHORTAGE' | 'DAMAGE' | 'WRONG_ITEM' | 'REJECTION' | 'TIMEOUT' | 'ADDRESS_ERROR' | 'OTHER';
+export type ExceptionType = 'UNBOXING_DAMAGE' | 'NEW_PART_RETURN' | 'PAINT_COLOR_DIFF' | 'LOGISTICS_LOST' | 'WARRANTY_RETURN' | 'PART_STATUS_ERROR' | 'LOGISTICS_EXCEPTION';
 export type Priority = 'P0' | 'P1' | 'P2' | 'P3';
 export type ExceptionStatus = 'PENDING' | 'PROCESSING' | 'RESOLVED' | 'CLOSED';
 export type ResponsibleParty = 'WAREHOUSE' | 'LOGISTICS' | 'SUPPLIER' | 'DEALER' | 'SYSTEM';
@@ -128,13 +128,13 @@ export const FULFILL_METHOD_MAP: Record<FulfillMethod, string> = {
 };
 
 export const EXCEPTION_TYPE_MAP: Record<ExceptionType, { label: string; color: string }> = {
-  SHORTAGE: { label: '缺货', color: '#E11D48' },
-  DAMAGE: { label: '破损', color: '#D97706' },
-  WRONG_ITEM: { label: '错发', color: '#7C3AED' },
-  REJECTION: { label: '拒收', color: '#DC2626' },
-  TIMEOUT: { label: '超时', color: '#F59E0B' },
-  ADDRESS_ERROR: { label: '地址异常', color: '#0891B2' },
-  OTHER: { label: '其他', color: '#6B7280' },
+  UNBOXING_DAMAGE: { label: '开箱破损', color: '#E11D48' },
+  NEW_PART_RETURN: { label: '新件退回', color: '#D97706' },
+  PAINT_COLOR_DIFF: { label: '烤漆件色差', color: '#7C3AED' },
+  LOGISTICS_LOST: { label: '物流丢件', color: '#DC2626' },
+  WARRANTY_RETURN: { label: '三包退件', color: '#F59E0B' },
+  PART_STATUS_ERROR: { label: '配件状态异常(错发/漏发)', color: '#0891B2' },
+  LOGISTICS_EXCEPTION: { label: '物流异常', color: '#6B7280' },
 };
 
 export const PRIORITY_MAP: Record<Priority, { label: string; color: string }> = {

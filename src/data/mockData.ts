@@ -208,24 +208,28 @@ export function generateAppointments(orders: OrderDTO[]): AppointmentDTO[] {
 // ========== 生成异常数据 ==========
 
 export function generateExceptions(orders: OrderDTO[]): ExceptionDTO[] {
-  const types = ['SHORTAGE', 'DAMAGE', 'WRONG_ITEM', 'REJECTION', 'TIMEOUT', 'ADDRESS_ERROR', 'OTHER'] as const;
+  const types = ['UNBOXING_DAMAGE', 'NEW_PART_RETURN', 'PAINT_COLOR_DIFF', 'LOGISTICS_LOST', 'WARRANTY_RETURN', 'PART_STATUS_ERROR', 'LOGISTICS_EXCEPTION'] as const;
   const priorities = ['P0', 'P1', 'P2', 'P3'] as const;
   const statuses = ['PENDING', 'PROCESSING', 'RESOLVED', 'CLOSED'] as const;
   const parties = ['WAREHOUSE', 'LOGISTICS', 'SUPPLIER', 'DEALER', 'SYSTEM'] as const;
   const handlers = ['张建国', '李明辉', '王丽华', '赵志强'];
 
-  const descriptions = [
-    'SKU YD-BP-001 实发数量少于应发 2 件',
-    '外包装破损，配件表面有划痕',
-    '发错规格，应为YD-FL-001实际收到YD-FL-002',
-    '客户拒收，商品与预期不符',
-    '订单超过48小时未审核',
-    '收货地址信息不完整，无法配送',
-    '物流信息超过72小时未更新',
-  ];
+  const descriptions: Record<string, string[]> = {
+    UNBOXING_DAMAGE: ['经销商开箱发现前刹车片外包装破损，产品表面划痕', 'LED大灯灯罩碎裂，运输途中碰撞', '控制器包装变形，电路板疑似受损'],
+    NEW_PART_RETURN: ['经销商退回未使用的后减震器，原因为定错型号', '新件退回-轮胎套装规格与车型不匹配', '经销商退回多余库存充电器5台'],
+    PAINT_COLOR_DIFF: ['车身外壳套件烤漆颜色与样品色差超过允收范围', '前挡泥板烤漆存在色斑和橘皮纹', '定制喷涂颜色与确认样不符'],
+    LOGISTICS_LOST: ['顺丰运单SF90012345678显示已揽收但72小时无更新，疑似丢件', '京东物流反馈包裹在中转站遗失', '德邦快递反馈运输途中包裹丢失'],
+    WARRANTY_RETURN: ['三包期内蓄电池容量衰减超过30%，客户要求退件', '电机异响故障，三包鉴定后确认退件', '控制器功能失效，三包期内申请退换'],
+    PART_STATUS_ERROR: ['应发YD-BP-001实际发出YD-BP-002，错发规格', '订单包含5件商品实发4件，漏发空气滤芯1件', '错发-经销商实际下单前刹车片收到后刹车片'],
+    LOGISTICS_EXCEPTION: ['物流轨迹显示派送异常，收件地址无法找到', '运输途中包裹外包装严重破损，客户拒收', '物流信息超过48小时未更新'],
+  };
 
-  return Array.from({ length: 10 }, (_, i) => {
-    const order = orders[randomInt(0, orders.length - 1)];
+  const exceptionOrders = orders.filter((o) => o.status === 'EXCEPTION' || Math.random() > 0.7).slice(0, 10);
+  if (exceptionOrders.length === 0) return [];
+
+  return exceptionOrders.map((order, i) => {
+    const type = types[i % types.length];
+    const descs = descriptions[type] || ['未知异常'];
     const discoverDate = new Date(2026, 6, randomInt(10, 16), randomInt(8, 18), randomInt(0, 59));
     const deadline = new Date(discoverDate);
     deadline.setHours(deadline.getHours() + randomInt(2, 48));
@@ -233,11 +237,11 @@ export function generateExceptions(orders: OrderDTO[]): ExceptionDTO[] {
     return {
       exceptionNo: `EXC202607${String(16 - i).padStart(2, '0')}${String(i + 1).padStart(4, '0')}`,
       orderNo: order.orderNo,
-      exceptionType: types[i % types.length],
+      exceptionType: type,
       priority: priorities[i % priorities.length],
-      description: descriptions[i % descriptions.length],
+      description: randomPick(descs),
       responsibleParty: randomPick(parties),
-      status: statuses[i % statuses.length],
+      status: order.status === 'EXCEPTION' ? randomPick(['PENDING', 'PROCESSING']) : statuses[i % statuses.length],
       discoverTime: formatDate(discoverDate),
       deadline: formatDate(deadline),
       handler: randomPick(handlers),

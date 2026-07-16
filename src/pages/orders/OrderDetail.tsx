@@ -2,19 +2,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Descriptions, Table, Tag, Steps, Timeline, Space, Button, Typography, Row, Col, Breadcrumb, Tooltip, Alert, Statistic, Divider } from 'antd';
 import { ArrowLeftOutlined, EnvironmentOutlined, ClockCircleOutlined, CarOutlined, InboxOutlined, ExclamationCircleOutlined, CheckCircleOutlined, TruckOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import dayjs from 'dayjs';
-import { mockOrders, mockDeliveryNotes, mockTrackingList, vehicleShippingPlans, supplierETAData, getOperationLogs } from '../../data/mockData';
-import { ORDER_STATUS_MAP, BIZ_TYPE_MAP, URGENCY_MAP, FULFILL_METHOD_MAP, ORDER_STATUS_STEPS } from '../../types';
-import type { OrderDTO, OrderItem, OrderStatus } from '../../types';
+import { mockOrders, mockDeliveryNotes, mockTrackingList, vehicleShippingPlans, supplierETAData, getOperationLogs, mockExceptions } from '../../data/mockData';
+import { ORDER_STATUS_MAP, BIZ_TYPE_MAP, URGENCY_MAP, FULFILL_METHOD_MAP, ORDER_STATUS_STEPS, EXCEPTION_TYPE_MAP, EXCEPTION_STATUS_MAP } from '../../types';
+import type { OrderItem, OrderStatus } from '../../types';
 
 const { Title, Text } = Typography;
-
-const REASON_MAP: Record<string, { label: string; color: string }> = {
-  SUPPLIER_PENDING: { label: '供应商未发货', color: '#E11D48' },
-  IN_TRANSIT: { label: '在途运输中', color: '#F59E0B' },
-  CUSTOMS: { label: '通关中', color: '#7C3AED' },
-  PRODUCTION: { label: '生产中', color: '#0284C7' },
-};
 
 export default function OrderDetail() {
   const { orderNo } = useParams<{ orderNo: string }>();
@@ -24,6 +16,7 @@ export default function OrderDetail() {
   const deliveryNote = mockDeliveryNotes.find((dn) => dn.orderNo === orderNo);
   const tracking = mockTrackingList.find((t) => t.orderNo === orderNo);
   const operationLogs = order ? getOperationLogs(order) : [];
+  const linkedExceptions = mockExceptions.filter((e) => e.orderNo === orderNo);
 
   if (!order) {
     return (<div style={{ textAlign: 'center', padding: 80 }}><Title level={3} type="secondary">订单未找到</Title><Button type="link" onClick={() => navigate('/orders')}>返回订单列表</Button></div>);
@@ -212,6 +205,23 @@ export default function OrderDetail() {
               )}
             </div>
           </Card>
+
+          {/* 关联异常 */}
+          {linkedExceptions.length > 0 && (
+            <Card title={<Space><ExclamationCircleOutlined style={{ color: '#E11D48' }} />关联异常 ({linkedExceptions.length})</Space>} size="small" style={{ marginBottom: 16, borderLeft: '3px solid #E11D48' }}>
+              {linkedExceptions.map((ex) => (
+                <div key={ex.exceptionNo} style={{ marginBottom: 8, padding: '8px 10px', background: '#FFF1F0', borderRadius: 4, cursor: 'pointer' }} onClick={() => navigate('/exceptions')}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Space size={4}>
+                      <Tag color={EXCEPTION_TYPE_MAP[ex.exceptionType]?.color}>{EXCEPTION_TYPE_MAP[ex.exceptionType]?.label}</Tag>
+                      <Text style={{ fontSize: 12 }}>{ex.description.substring(0, 20)}...</Text>
+                    </Space>
+                    <Tag color={EXCEPTION_STATUS_MAP[ex.status] === '待处理' ? '#E11D48' : EXCEPTION_STATUS_MAP[ex.status] === '已解决' ? '#16A34A' : '#F59E0B'}>{EXCEPTION_STATUS_MAP[ex.status]}</Tag>
+                  </div>
+                </div>
+              ))}
+            </Card>
+          )}
 
           {/* 电子交货单 */}
           {deliveryNote && (
