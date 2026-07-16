@@ -93,7 +93,7 @@ export function generateOrders(): OrderDTO[] {
   const urgencies = ['NORMAL', 'URGENT', 'CRITICAL'] as const;
   const methods = ['DIRECT_SHIP', 'WAREHOUSE_SHIP'] as const;
   const bases = ['华东基地', '华南基地', '华北基地', '西南基地'];
-  const vinPool = [
+  const vins = [
     'LSVAU2180N2012345', 'LSVAU2190N2015678', 'LSVAU2200N2018901',
     'LSVAU2210N2021123', 'LSVAU2220N2024456', 'LSVAU2230N2027789',
     'LSVAU2240N2030012', 'LSVAU2250N2033345',
@@ -131,7 +131,7 @@ export function generateOrders(): OrderDTO[] {
       urgencyLevel: randomPick(urgencies),
       fulfillMethod: randomPick(methods),
       status,
-      vinCodes: Array.from({ length: randomInt(1, 3) }, () => randomPick(vinPool)),
+      vinCodes: Array.from({ length: randomInt(1, 3) }, () => randomPick(vins)),
       baseSource: randomPick(bases),
       shortageFlag,
       skuCount: items.length,
@@ -463,7 +463,7 @@ export function generateProducts(): ProductDTO[] {
       status: statuses[i % statuses.length],
       updateTime: formatDate(updateDate),
       tags: (i % 5 === 0 ? ['NEW' as ProductTag] : i % 5 === 1 ? ['HOT' as ProductTag] : i % 5 === 2 ? ['PROMOTION' as ProductTag] : i % 5 === 3 ? ['NEW' as ProductTag, 'HOT' as ProductTag] : ['NONE' as ProductTag]),
-      compatibleVins: Array.from({ length: randomInt(2, 6) }, () => randomPick(vinPool)),
+      compatibleVins: Array.from({ length: randomInt(2, 6) }, () => `LSVAU2${String(randomInt(180, 250))}N${String(randomInt(20000000, 29999999))}`),
       baseInventory: [
         { baseName: '华东仓', stock: randomInt(50, 500), reserved: randomInt(5, 50), available: randomInt(40, 450) },
         { baseName: '华南仓', stock: randomInt(30, 400), reserved: randomInt(0, 40), available: randomInt(30, 360) },
