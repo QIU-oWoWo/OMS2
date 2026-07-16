@@ -1,21 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Card,
-  Table,
-  Input,
-  Select,
-  DatePicker,
-  Button,
-  Space,
-  Tag,
-  Typography,
-  Row,
-  Col,
-  Modal,
-  message,
+  Card, Table, Input, Select, DatePicker, Button, Space, Tag, Typography, Row, Col, Modal, message,
+  Drawer, Switch, InputNumber, Divider, Alert,
 } from 'antd';
-import { SearchOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined, CalendarOutlined } from '@ant-design/icons';
+import { SearchOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined, CalendarOutlined, SettingOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { mockAppointments } from '../../data/mockData';
@@ -35,6 +24,16 @@ const STATUS_COLORS: Record<AppointStatus, string> = {
 
 export default function AppointmentList() {
   const navigate = useNavigate();
+
+  const [ruleOpen, setRuleOpen] = useState(false);
+  const [rules, setRules] = useState({
+    enabled: true,
+    earliestDays: 3,
+    latestDays: 30,
+    timeWindowStart: 8,
+    timeWindowEnd: 18,
+    maxPerDay: 20,
+  });
 
   const [filters, setFilters] = useState({
     appointNo: '',
@@ -181,6 +180,46 @@ export default function AppointmentList() {
           重置
         </Button>
       </div>
+
+      {/* 预约规则配置入口 */}
+      <Card size="small" style={{ marginBottom: 16, background: '#FAFAFA' }}
+        title={<Space><SettingOutlined /><Text strong style={{ fontSize: 14 }}>预约规则配置</Text></Space>}>
+        <div onClick={() => setRuleOpen(true)} style={{ cursor: 'pointer', padding: '12px 16px', borderRadius: 8, background: '#FFFFFF', border: '1px solid #F0F0F0', display: 'inline-block', transition: 'all 0.2s' }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#0284C7'; e.currentTarget.style.boxShadow = '0 2px 8px #0284C720'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#F0F0F0'; e.currentTarget.style.boxShadow = 'none'; }}>
+          <Space><CalendarOutlined style={{ color: '#0284C7', fontSize: 18 }} /><div><Text strong style={{ fontSize: 13 }}>预约时间规则</Text><br /><Text type="secondary" style={{ fontSize: 11 }}>最早/最晚可预约时间 · 时间窗口 · 每日上限</Text></div></Space>
+        </div>
+      </Card>
+
+      <Drawer title={<Space><CalendarOutlined />预约规则配置</Space>} open={ruleOpen} onClose={() => setRuleOpen(false)} width={460}
+        extra={<Button type="primary" size="small" onClick={() => { message.success('预约规则已保存'); setRuleOpen(false); }}>保存配置</Button>}>
+        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}><Text strong>启用预约规则</Text><Switch checked={rules.enabled} onChange={(v) => setRules((p) => ({ ...p, enabled: v }))} /></div>
+        <Divider style={{ margin: '12px 0' }} />
+        <div style={{ marginBottom: 16 }}><Text strong>可预约时间范围：</Text></div>
+        <div style={{ marginBottom: 16 }}>
+          <Text>最早可预约：</Text><Text type="secondary" style={{ fontSize: 12 }}>（经销商需提前至少）</Text>
+          <InputNumber min={1} max={90} value={rules.earliestDays} onChange={(v) => setRules((p) => ({ ...p, earliestDays: v || 3 }))} style={{ width: 70, margin: '0 8px' }} /><Text>天</Text>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <Text>最晚可预约：</Text><Text type="secondary" style={{ fontSize: 12 }}>（经销商最多可提前）</Text>
+          <InputNumber min={1} max={180} value={rules.latestDays} onChange={(v) => setRules((p) => ({ ...p, latestDays: v || 30 }))} style={{ width: 70, margin: '0 8px' }} /><Text>天</Text>
+        </div>
+        <Divider style={{ margin: '12px 0' }} />
+        <div style={{ marginBottom: 16 }}><Text strong>预约时间窗口（每日）：</Text></div>
+        <div style={{ marginBottom: 16 }}>
+          <InputNumber min={0} max={23} value={rules.timeWindowStart} onChange={(v) => setRules((p) => ({ ...p, timeWindowStart: v || 8 }))} style={{ width: 70 }} />
+          <Text style={{ margin: '0 8px' }}>:00 —</Text>
+          <InputNumber min={0} max={23} value={rules.timeWindowEnd} onChange={(v) => setRules((p) => ({ ...p, timeWindowEnd: v || 18 }))} style={{ width: 70, marginLeft: 8 }} />
+          <Text style={{ marginLeft: 8 }}>:00</Text>
+        </div>
+        <Divider style={{ margin: '12px 0' }} />
+        <div style={{ marginBottom: 16 }}>
+          <Text strong>每日预约上限：</Text>
+          <InputNumber min={1} max={500} value={rules.maxPerDay} onChange={(v) => setRules((p) => ({ ...p, maxPerDay: v || 20 }))} style={{ width: 80, marginLeft: 8 }} /><Text style={{ marginLeft: 8 }}>单</Text>
+        </div>
+        <Divider style={{ margin: '16px 0' }} />
+        <Alert message={`当前规则：经销商需提前 ${rules.earliestDays}~${rules.latestDays} 天预约，每日 ${rules.timeWindowStart}:00-${rules.timeWindowEnd}:00 开放预约，上限 ${rules.maxPerDay} 单/天`} type="info" showIcon />
+      </Drawer>
 
       {/* 筛选区 */}
       <Card size="small" style={{ marginBottom: 16 }}>
