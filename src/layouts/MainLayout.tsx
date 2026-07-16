@@ -63,7 +63,7 @@ const menuItems: MenuItem[] = [
     children: [
       { key: '/orders', icon: <FileTextOutlined />, label: '订单列表' },
       { key: '/orders/appointments', icon: <CalendarOutlined />, label: '预约单管理' },
-      { key: '/orders/custom', icon: <AppstoreOutlined />, label: '定制订单' },
+      { key: '/orders/custom', icon: <AppstoreOutlined />, label: '定制订单管理' },
       { key: '/orders/call400', icon: <FileProtectOutlined />, label: '400免费订单' },
       { key: '/orders/vehicle-shipping', icon: <CarOutlined />, label: '整车发货计划' },
       { key: '/orders/invoices', icon: <DollarOutlined />, label: '开票管理' },

@@ -920,7 +920,7 @@ mockOrders.filter((o) => ['PENDING_REVIEW', 'SCHEDULING', 'PICKING', 'READY_TO_S
       skuCode: it.skuCode, skuName: it.skuName,
       shortageQty: it.shortageQty || randomInt(1, 5),
       supplier: randomPick(['BOSCH', 'MANN', 'DID', '博世', '全顺', '凯利', '雅迪原厂']),
-      estimatedArrival: formatDate(new Date(2026, 6, randomInt(17, 25), randomInt(8, 18))),
+      estimatedArrival: formatDate(new Date(2026, 6, randomInt(17, 20), randomInt(8, 18))),
       reason: randomPick(['SUPPLIER_PENDING', 'IN_TRANSIT', 'CUSTOMS', 'PRODUCTION']),
     }));
 });

@@ -40,8 +40,7 @@ export default function OrderDetail() {
 
   // 缺件ETA
   const etaData = supplierETAData[order.orderNo] || [];
-  const estimatedShipDate = dayjs(order.createTime).add(isUnshipped ? 5 : 0, 'day').format('YYYY-MM-DD');
-  const estimatedArrivalDate = isShipped ? (tracking?.nodes[tracking.nodes.length - 1]?.time || order.createTime).replace('T', ' ').substring(0, 10) : dayjs(estimatedShipDate).add(shippingMethod === 'WITH_VEHICLE' ? 1 : 2, 'day').format('YYYY-MM-DD');
+  const estimatedShipDate = isUnshipped ? dayjs().add(3, 'day').format('YYYY-MM-DD') : order.createTime.replace('T', ' ').substring(0, 10);
 
   const itemColumns: ColumnsType<OrderItem> = [
     { title: 'SKU编码', dataIndex: 'skuCode', width: 140, render: (c: string) => <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{c}</span> },
@@ -134,7 +133,7 @@ export default function OrderDetail() {
               )}
               <Divider style={{ margin: '12px 0' }} />
               <Row gutter={16}>
-                <Col span={12}><Statistic title="预计到货时间" value={estimatedArrivalDate} prefix={<ClockCircleOutlined />} valueStyle={{ fontSize: 18 }} /></Col>
+                <Col span={12}><Statistic title={tracking?.trackStatus === 'DELIVERED' ? '签收时间' : '预计到货时间'} value={tracking?.trackStatus === 'DELIVERED' ? (tracking?.nodes[tracking.nodes.length - 1]?.time || '').replace('T', ' ').substring(0, 10) : '—'} prefix={<ClockCircleOutlined />} valueStyle={{ fontSize: 18 }} /></Col>
                 <Col span={12}><Statistic title="发货时间" value={order.createTime.replace('T', ' ').substring(0, 16).split('T')[0]} prefix={<CheckCircleOutlined />} valueStyle={{ fontSize: 18, color: '#16A34A' }} /></Col>
               </Row>
             </Card>
@@ -153,8 +152,8 @@ export default function OrderDetail() {
                       { title: '名称', dataIndex: 'skuName', width: 120 },
                       { title: '缺少数', dataIndex: 'shortageQty', width: 60, align: 'center', render: (v: number) => <Tag color="error">{v}</Tag> },
                       { title: '供应商', dataIndex: 'supplier', width: 80 },
-                      { title: '预计到货', dataIndex: 'estimatedArrival', width: 140, render: (t: string) => <span style={{ fontWeight: 500 }}>{t.replace('T', ' ').substring(0, 16)}</span> },
-                      { title: '原因', dataIndex: 'reason', width: 100, render: (r: string) => { const info = REASON_MAP[r]; return <Tag color={info?.color}>{info?.label || r}</Tag>; } },
+                      { title: '预计到货', dataIndex: 'estimatedArrival', width: 140, render: (t: string) => <span style={{ fontWeight: 500, color: '#F59E0B' }}>{t.replace('T', ' ').substring(0, 16)}</span> },
+                      { title: '物流单号', dataIndex: 'reason', width: 100, render: () => <Text type="secondary">—</Text> },
                     ]} />
                   <Alert message="以上配件由供应商发货至基地仓库，到货后方可拣货发出" type="warning" showIcon style={{ marginBottom: 16 }} />
                 </div>
@@ -163,7 +162,7 @@ export default function OrderDetail() {
               )}
               <Row gutter={16}>
                 <Col span={8}><Statistic title="预计发货时间" value={estimatedShipDate} prefix={<ClockCircleOutlined />} valueStyle={{ color: '#FF6B00', fontSize: 16 }} /></Col>
-                <Col span={8}><Statistic title="预计到货时间" value={estimatedArrivalDate} prefix={<EnvironmentOutlined />} valueStyle={{ color: '#0284C7', fontSize: 16 }} /></Col>
+                <Col span={8}><Statistic title="预计到货时间" value="—" prefix={<EnvironmentOutlined />} valueStyle={{ color: '#8C8C8C', fontSize: 16 }} /></Col>
                 <Col span={8}><Statistic title="发货方式" value={shippingMethod === 'WITH_VEHICLE' ? '随车' : '非随'} prefix={shippingMethod === 'WITH_VEHICLE' ? <CarOutlined /> : <InboxOutlined />} valueStyle={{ fontSize: 16 }} /></Col>
               </Row>
             </Card>

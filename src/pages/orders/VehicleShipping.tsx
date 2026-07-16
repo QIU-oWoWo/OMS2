@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Table, Tag, Button, Space, Typography, Row, Col, Modal, Select, InputNumber, Switch, Alert, Divider, message, Descriptions, Collapse, DatePicker } from 'antd';
-import { CarOutlined, EditOutlined, LinkOutlined, DisconnectOutlined, CalendarOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
+import { CarOutlined, LinkOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { vehicleShippingPlans, mockOrders } from '../../data/mockData';
@@ -26,12 +26,8 @@ export default function VehicleShipping() {
     { title: '已匹配订单', dataIndex: 'matchedOrders', width: 150, render: (orders: string[]) => orders.length > 0 ? orders.map((o) => <Tag key={o} style={{ marginBottom: 4 }} color="purple"><a onClick={(e) => { e.stopPropagation(); navigate(`/orders/${o}`); }} style={{ color: '#7C3AED' }}>{o.substring(0, 16)}...</a></Tag>) : <Text type="secondary">未匹配</Text> },
     { title: '剩余配额', dataIndex: 'remainingCapacity', width: 80, align: 'center', render: (v: number) => <span style={{ color: v > 0 ? '#16A34A' : '#E11D48', fontWeight: 500 }}>{v}</span> },
     { title: '状态', dataIndex: 'status', width: 90, render: (s: string) => { const m: Record<string, { label: string; color: string }> = { PLANNED: { label: '已计划', color: '#0284C7' }, LOADING: { label: '装载中', color: '#FF6B00' }, IN_TRANSIT: { label: '运输中', color: '#7C3AED' }, ARRIVED: { label: '已到达', color: '#16A34A' } }; return <Tag color={m[s]?.color}>{m[s]?.label}</Tag>; } },
-    { title: '操作', key: 'actions', width: 200, render: (_: unknown, r: typeof vehicleShippingPlans[number]) => (
-      <Space size="small">
-        <Button size="small" type="primary" icon={<LinkOutlined />} onClick={(e) => { e.stopPropagation(); setMatchModal({ planNo: r.planNo, open: true }); }}>匹配订单</Button>
-        {r.matchedOrders.length > 0 && <Button size="small" icon={<DisconnectOutlined />} onClick={(e) => { e.stopPropagation(); Modal.confirm({ title: '取消匹配', content: `确定取消所有 ${r.matchedOrders.length} 个订单的匹配？`, onOk: () => message.success('匹配已取消') }); }}>取消</Button>}
-        <Button size="small" icon={<EditOutlined />} onClick={(e) => { e.stopPropagation(); message.info('日期修改功能'); }}>改期</Button>
-      </Space>
+    { title: '操作', key: 'actions', width: 120, render: (_: unknown, r: typeof vehicleShippingPlans[number]) => (
+      <Button size="small" type="primary" icon={<LinkOutlined />} onClick={(e) => { e.stopPropagation(); setMatchModal({ planNo: r.planNo, open: true }); }}>匹配订单</Button>
     )},
   ];
 
