@@ -46,22 +46,24 @@ export default function OrderDetail() {
   const navigate = useNavigate();
 
   const order = mockOrders.find((o) => o.orderNo === orderNo);
-  const deliveryNote = mockDeliveryNotes.find((dn) => dn.orderNo === orderNo);
-  const operationLogs = order ? getOperationLogs(order) : [];
-  const linkedExceptions = mockExceptions.filter((e) => e.orderNo === orderNo);
-  const splitData = order ? getSplitShipmentData(order.orderNo) : null;
-  const parcels = order ? getOrderParcels(order.orderNo) : [];
-  const appointment = order?.bizType === 'APPOINTMENT' ? mockAppointments.find((a) => a.orderNo === orderNo) : null;
-  const customOrder = order?.bizType === 'CUSTOM' ? mockCustomOrders.find((c) => c.orderNo === orderNo) : null;
-  const call400Order = order?.bizType === 'CALL_400' ? mockCall400Orders.find((c) => c.originOrderNo === orderNo) : null;
-  const isSpecialType = ['APPOINTMENT', 'CUSTOM', 'CALL_400', 'REQUISITION'].includes(order.bizType);
 
-  // 本地订单状态（用于模拟操作后的状态流转）
+  // Hooks 必须在所有 early return 之前
   const [localStatus, setLocalStatus] = useState<OrderStatus | null>(null);
-  const displayStatus = localStatus || order.status;
-  const isPendingReview = displayStatus === 'PENDING_REVIEW';
 
   if (!order) return (<div style={{ textAlign: 'center', padding: 80 }}><Title level={3} type="secondary">订单未找到</Title><Button type="link" onClick={() => navigate('/orders')}>返回订单列表</Button></div>);
+
+  const deliveryNote = mockDeliveryNotes.find((dn) => dn.orderNo === orderNo);
+  const operationLogs = getOperationLogs(order);
+  const linkedExceptions = mockExceptions.filter((e) => e.orderNo === orderNo);
+  const splitData = getSplitShipmentData(order.orderNo);
+  const parcels = getOrderParcels(order.orderNo);
+  const appointment = order.bizType === 'APPOINTMENT' ? mockAppointments.find((a) => a.orderNo === orderNo) : null;
+  const customOrder = order.bizType === 'CUSTOM' ? mockCustomOrders.find((c) => c.orderNo === orderNo) : null;
+  const call400Order = order.bizType === 'CALL_400' ? mockCall400Orders.find((c) => c.originOrderNo === orderNo) : null;
+  const isSpecialType = ['APPOINTMENT', 'CUSTOM', 'CALL_400', 'REQUISITION'].includes(order.bizType);
+
+  const displayStatus = localStatus || order.status;
+  const isPendingReview = displayStatus === 'PENDING_REVIEW';
 
   // 订单状态判断（使用 localStatus 覆盖以支持模拟操作）
   const flowNodeIdx = STATUS_TO_FLOW_NODE[displayStatus];
@@ -190,8 +192,14 @@ export default function OrderDetail() {
       if (nodeIdx === 0) return order.createTime.replace('T', ' ').substring(5, 16);
       if (nodeIdx === 1) return order.createTime.replace('T', ' ').substring(5, 16);
       if (nodeIdx === 2) return totalPkgCount > 1 ? `拆为${totalPkgCount}包裹` : '整单发出';
-      if (nodeIdx === 3) return nodeCompleted[3] ? '拣货已完成' : `${pkgs.filter(p => p.status === 'PICKING').length}/${totalPkgCount}包裹拣货中`;
-      if (nodeIdx === 4) return nodeCompleted[4] ? '全部待发' : `${pkgs.filter(p => p.status === 'WAITING_RESTOCK').length}包裹缺件等待`;
+      if (nodeIdx === 3) {
+        const pickingNow = pkgs.filter(p => p.status === 'PICKING').length;
+        return pickingNow === 0 ? '拣货已完成' : `${pickingNow}/${totalPkgCount}包裹拣货中`;
+      }
+      if (nodeIdx === 4) {
+        const waitingNow = pkgs.filter(p => p.status === 'WAITING_RESTOCK').length;
+        return waitingNow === 0 ? '全部包裹已发货' : `${waitingNow}包裹缺件等待`;
+      }
       return '';
     };
 
@@ -260,42 +268,44 @@ export default function OrderDetail() {
           })}
         </div>
 
-        {/* ===== 节点5(运输中)包裹级状态说明 ===== */}
-        {(activeIdx <= 5) && totalPkgCount > 0 && (
-          <div style={{ display: 'flex', marginTop: 6, paddingLeft: `${(5 / totalNodes) * 100}%`, width: '100%' }}>
-            <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', fontSize: 11, color: '#595959' }}>
-                {pkgs.map((p, pi) => {
-                  const dot = getPkgStatusDot(p.status);
-                  return (
-                    <span key={pi} style={{ whiteSpace: 'nowrap' }}>
-                      <span style={{ color: dot.color, fontWeight: 700, marginRight: 2 }}>{dot.char}</span>
-                      包裹{pi + 1}{getPkgStatusLabel(p.status)}
-                    </span>
-                  );
-                })}
-              </div>
+        {/* ===== 节点5(运输中)包裹级状态说明 — 仅活跃时展示 ===== */}
+        {activeIdx === 5 && totalPkgCount > 1 && (
+          <div style={{ display: 'flex', marginTop: 6 }}>
+            {/* 前5个节点占位 */}
+            {Array.from({ length: 5 }).map((_, i) => <div key={i} style={{ flex: 1 }} />)}
+            {/* 节点5下方：每个包裹一行 */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              {pkgs.map((p, pi) => {
+                const dot = getPkgStatusDot(p.status);
+                return (
+                  <div key={pi} style={{ fontSize: 11, color: '#595959', whiteSpace: 'nowrap' }}>
+                    <span style={{ color: dot.color, fontWeight: 700, marginRight: 3 }}>{dot.char}</span>
+                    包裹{pi + 1} {getPkgStatusLabel(p.status)}
+                  </div>
+                );
+              })}
             </div>
             {/* 节点6占位 */}
             <div style={{ flex: 1 }} />
           </div>
         )}
 
-        {/* ===== 节点6(已签收/完成)包裹级状态说明 ===== */}
-        {(activeIdx <= 6) && totalPkgCount > 0 && (
-          <div style={{ display: 'flex', marginTop: 4, paddingLeft: `${(6 / totalNodes) * 100}%`, width: '100%' }}>
-            <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', fontSize: 11, color: '#595959' }}>
-                {pkgs.map((p, pi) => {
-                  const dot = getPkgStatusDot(p.status);
-                  return (
-                    <span key={pi} style={{ whiteSpace: 'nowrap' }}>
-                      <span style={{ color: dot.color, fontWeight: 700, marginRight: 2 }}>{dot.char}</span>
-                      包裹{pi + 1}{getPkgStatusLabel(p.status)}
-                    </span>
-                  );
-                })}
-              </div>
+        {/* ===== 节点6(已签收/完成)包裹级状态说明 — 仅活跃时展示 ===== */}
+        {activeIdx === 6 && totalPkgCount > 1 && (
+          <div style={{ display: 'flex', marginTop: 4 }}>
+            {/* 前6个节点占位 */}
+            {Array.from({ length: 6 }).map((_, i) => <div key={i} style={{ flex: 1 }} />)}
+            {/* 节点6下方：每个包裹一行 */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              {pkgs.map((p, pi) => {
+                const dot = getPkgStatusDot(p.status);
+                return (
+                  <div key={pi} style={{ fontSize: 11, color: '#595959', whiteSpace: 'nowrap' }}>
+                    <span style={{ color: dot.color, fontWeight: 700, marginRight: 3 }}>{dot.char}</span>
+                    包裹{pi + 1} {getPkgStatusLabel(p.status)}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -414,7 +424,7 @@ export default function OrderDetail() {
                       onOk: () => { setLocalStatus('ORDER_TERMINATED'); message.success('订单已拒绝，流程终止'); },
                     });
                   }}>审核拒绝</Button>
-                  <Button size="small" danger icon={<CloseCircleOutlined />} onClick={() => {
+                  <Button size="small" danger icon={<CloseCircleOutlined />} disabled={isTerminal} onClick={() => {
                     Modal.confirm({
                       title: '终止订单',
                       content: `确认终止订单 ${order.orderNo}？终止后订单将不再继续履约。`,
@@ -424,7 +434,7 @@ export default function OrderDetail() {
                   }}>终止订单</Button>
                 </>
               ) : (
-                <Button size="small" danger icon={<CloseCircleOutlined />} onClick={() => {
+                <Button size="small" danger icon={<CloseCircleOutlined />} disabled={isTerminal} onClick={() => {
                   Modal.confirm({
                     title: '终止订单',
                     content: `确认终止订单 ${order.orderNo}？终止后订单将不再继续履约。`,

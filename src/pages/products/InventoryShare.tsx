@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card, Table, Input, Select, DatePicker, Button, Space, Tag, Typography, Row, Col,
-  Drawer, Descriptions, Timeline, Alert, Collapse, Divider, message,
+  Drawer, Descriptions, Timeline, Alert, Collapse, Divider, message, Modal,
 } from 'antd';
 import {
   SearchOutlined, ReloadOutlined, EyeOutlined, CheckCircleOutlined,
@@ -41,11 +41,8 @@ export default function InventoryShare() {
   }, [filters]);
 
   const columns: ColumnsType<InventoryShareDTO> = [
-    { title: '共享单号', dataIndex: 'shareNo', key: 'shareNo', width: 170, render: (no: string) => (<a onClick={(e) => { e.stopPropagation(); setDetailDrawer(mockInventoryShares.find((s) => s.shareNo === no) || null); }} style={{ color: '#FF6B00', fontWeight: 500, fontFamily: 'monospace' }}>{no}</a>) },
     { title: '共享方经销商', dataIndex: 'fromDealerName', key: 'fromDealerName', width: 150 },
-    { title: '接收方', dataIndex: 'toDealerName', key: 'toDealerName', width: 150 },
-    { title: 'SKU明细', key: 'skuSummary', width: 200, render: (_: unknown, r: InventoryShareDTO) => r.items.map((i) => `${i.skuName}×${i.quantity}`).join(', ') },
-    { title: '共享数量', key: 'totalQty', width: 80, align: 'center', render: (_: unknown, r: InventoryShareDTO) => r.items.reduce((s, i) => s + i.quantity, 0) },
+    { title: 'SKU明细', key: 'skuSummary', width: 220, render: (_: unknown, r: InventoryShareDTO) => r.items.map((i) => <Tag key={i.skuCode} style={{ fontFamily: 'monospace', fontSize: 11 }}>{i.skuCode}</Tag>) },
     { title: '定价', dataIndex: 'totalAmount', key: 'totalAmount', width: 110, align: 'right', sorter: (a, b) => a.totalAmount - b.totalAmount, render: (v: number) => <span style={{ fontWeight: 500 }}>¥{v.toLocaleString()}</span> },
     { title: '质量认证', key: 'qualityCert', width: 110, align: 'center', render: (_: unknown, r: InventoryShareDTO) => {
       if (r.qualityCertStatus === 'VERIFIED') return <Tag icon={<SafetyCertificateOutlined />} color="success">已认证</Tag>;
@@ -54,7 +51,7 @@ export default function InventoryShare() {
     }},
     { title: '共享状态', dataIndex: 'status', key: 'status', width: 90, render: (s: ShareStatus) => { const info = SHARE_STATUS_MAP[s]; return <Tag color={info?.color}>{info?.label}</Tag>; } },
     { title: '创建时间', dataIndex: 'createTime', key: 'createTime', width: 160, sorter: (a, b) => a.createTime.localeCompare(b.createTime), render: (t: string) => t.replace('T', ' ').substring(0, 16) },
-    { title: '操作', key: 'actions', width: 80, render: (_: unknown, r: InventoryShareDTO) => (<Button size="small" icon={<EyeOutlined />} onClick={(e) => { e.stopPropagation(); setDetailDrawer(r); }}>详情</Button>) },
+    { title: '操作', key: 'actions', width: 80, render: (_: unknown, r: InventoryShareDTO) => (<Button size="small" danger icon={<CloseCircleOutlined />} onClick={(e) => { e.stopPropagation(); Modal.confirm({ title: '确认下架', content: `确定要下架共享 ${r.shareNo} 吗？`, okText: '确认', okButtonProps: { danger: true }, onOk: () => message.success('已下架') }); }}>下架</Button>) },
   ];
 
   return (

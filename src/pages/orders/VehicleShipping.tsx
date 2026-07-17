@@ -15,16 +15,14 @@ export default function VehicleShipping() {
   const [matchRule, setMatchRule] = useState({ autoMatch: true, sameDealer: true, timeWindow: 7, urgentPriority: true, allowManual: true });
 
   const columns: ColumnsType<typeof vehicleShippingPlans[number]> = [
-    { title: '计划编号', dataIndex: 'planNo', width: 130, render: (v: string) => <span style={{ fontFamily: 'monospace', fontWeight: 500, color: '#7C3AED' }}>{v}</span> },
-    { title: '整车车型', dataIndex: 'vehicleModel', width: 150 },
-    { title: '数量', dataIndex: 'vehicleCount', width: 60, align: 'center', render: (v: number) => <Text strong>{v} 辆</Text> },
     { title: '目的经销商', dataIndex: 'dealerName', width: 150 },
+    { title: '整车车型', dataIndex: 'vehicleModel', width: 150 },
+    { title: '车牌号', dataIndex: 'planNo', width: 120, render: (v: string) => <span style={{ fontFamily: 'monospace', fontWeight: 500 }}>{v.substring(0, 3)}·{v.substring(3, 8)}</span> },
     { title: '计划发车日', dataIndex: 'plannedShipDate', width: 110, sorter: (a, b) => a.plannedShipDate.localeCompare(b.plannedShipDate) },
     { title: '实际发车日', dataIndex: 'actualShipDate', width: 110, render: (v?: string) => v || <Text type="secondary">待定</Text> },
     { title: '路线', dataIndex: 'route', width: 120 },
     { title: '司机', dataIndex: 'driver', width: 80 },
     { title: '已匹配订单', dataIndex: 'matchedOrders', width: 150, render: (orders: string[]) => orders.length > 0 ? orders.map((o) => <Tag key={o} style={{ marginBottom: 4 }} color="purple"><a onClick={(e) => { e.stopPropagation(); navigate(`/orders/${o}`); }} style={{ color: '#7C3AED' }}>{o.substring(0, 16)}...</a></Tag>) : <Text type="secondary">未匹配</Text> },
-    { title: '剩余配额', dataIndex: 'remainingCapacity', width: 80, align: 'center', render: (v: number) => <span style={{ color: v > 0 ? '#16A34A' : '#E11D48', fontWeight: 500 }}>{v}</span> },
     { title: '状态', dataIndex: 'status', width: 90, render: (s: string) => { const m: Record<string, { label: string; color: string }> = { PLANNED: { label: '已计划', color: '#0284C7' }, LOADING: { label: '装载中', color: '#FF6B00' }, IN_TRANSIT: { label: '运输中', color: '#7C3AED' }, ARRIVED: { label: '已到达', color: '#16A34A' } }; return <Tag color={m[s]?.color}>{m[s]?.label}</Tag>; } },
     { title: '操作', key: 'actions', width: 120, render: (_: unknown, r: typeof vehicleShippingPlans[number]) => (
       <Button size="small" type="primary" icon={<LinkOutlined />} onClick={(e) => { e.stopPropagation(); setMatchModal({ planNo: r.planNo, open: true }); }}>匹配订单</Button>
