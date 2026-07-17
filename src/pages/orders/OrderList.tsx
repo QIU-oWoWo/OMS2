@@ -15,20 +15,29 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { mockOrders, mockDeliveryNotes } from '../../data/mockData';
 import {
-  ORDER_STATUS_MAP, BIZ_TYPE_MAP, URGENCY_MAP, FULFILL_METHOD_MAP, ORDER_STATUS_STEPS,
+  ORDER_STATUS_MAP, ORDER_STATUS_COLOR_MAP, BIZ_TYPE_MAP, URGENCY_MAP, FULFILL_METHOD_MAP, ORDER_FLOW_NODES,
 } from '../../types';
-import type { OrderDTO, OrderStatus } from '../../types';
+import type { OrderDTO, OrderStatus, OrderFlowNode } from '../../types';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { Panel } = Collapse;
 
 const STATUS_TABS: { key: OrderStatus | 'ALL'; label: string }[] = [
-  { key: 'ALL', label: '全部' }, { key: 'PENDING_REVIEW', label: '待审核' },
-  { key: 'SCHEDULING', label: '排单中' }, { key: 'PICKING', label: '拣货中' },
-  { key: 'READY_TO_SHIP', label: '待发货' }, { key: 'IN_TRANSIT', label: '运输中' },
-  { key: 'DELIVERED', label: '已签收' }, { key: 'EXCEPTION', label: '异常' },
+  { key: 'ALL', label: '全部' },
+  { key: 'PENDING_REVIEW', label: '待审核' },
+  { key: 'SCHEDULING', label: '排单中' },
+  { key: 'PICKING', label: '拣货中' },
+  { key: 'READY_TO_SHIP', label: '待发货' },
+  { key: 'PARTIALLY_SHIPPED', label: '部分发货' },
+  { key: 'IN_TRANSIT', label: '运输中' },
+  { key: 'DELIVERED', label: '已签收' },
   { key: 'COMPLETED', label: '已完成' },
+  { key: 'EXCEPTION_HOLD', label: '异常挂起' },
+  { key: 'RETURN_PROCESSING', label: '退货处理' },
+  { key: 'ORDER_TERMINATED', label: '已终止' },
+  { key: 'CANCELLED', label: '已取消' },
+  { key: 'EXCEPTION', label: '异常(旧)' },
 ];
 
 const ALL_COLUMNS = [
@@ -54,9 +63,11 @@ export default function OrderList() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialStatus = searchParams.get('status') as OrderStatus | null;
+  // 向后兼容：旧 ?status=EXCEPTION 映射到新状态
+  const mappedInitialStatus: OrderStatus | null = initialStatus === 'EXCEPTION' ? null : initialStatus;
   const searchKeyword = searchParams.get('search') || '';
 
-  const [activeTab, setActiveTab] = useState<OrderStatus | 'ALL'>(initialStatus || 'ALL');
+  const [activeTab, setActiveTab] = useState<OrderStatus | 'ALL'>(mappedInitialStatus || 'ALL');
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [showFilters, setShowFilters] = useState(true);
   const [visibleColumns, setVisibleColumns] = useState(ALL_COLUMNS.map((c) => c.key));
@@ -69,7 +80,7 @@ export default function OrderList() {
 
   // ---- 各配置状态 ----
   const [workflow, setWorkflow] = useState({
-    steps: ORDER_STATUS_STEPS.map((s) => ({ key: s as string, label: ORDER_STATUS_MAP[s], enabled: s !== 'COMPLETED' })),
+    steps: ORDER_FLOW_NODES.map((n) => ({ ...n, enabled: n.key !== 'delivered' })),
     autoComplete: true,
   });
 
@@ -105,7 +116,12 @@ export default function OrderList() {
         o.receiverPhone.includes(searchKeyword)
       );
     }
-    if (activeTab !== 'ALL') result = result.filter((o) => o.status === activeTab);
+    // 向后兼容：旧 ?status=EXCEPTION 显示 EXCEPTION_HOLD + RETURN_PROCESSING
+    if (initialStatus === 'EXCEPTION') {
+      result = result.filter((o) => o.status === 'EXCEPTION_HOLD' || o.status === 'RETURN_PROCESSING');
+    } else if (activeTab !== 'ALL') {
+      result = result.filter((o) => o.status === activeTab);
+    }
     if (filters.orderNo) result = result.filter((o) => o.orderNo.includes(filters.orderNo.toUpperCase()) || o.orderNo.includes(filters.orderNo));
     if (filters.dealerName) result = result.filter((o) => o.dealerName.includes(filters.dealerName));
     if (filters.dateRange) { const [s, e] = filters.dateRange; result = result.filter((o) => dayjs(o.createTime).isAfter(s.startOf('day')) && dayjs(o.createTime).isBefore(e.endOf('day'))); }
@@ -154,7 +170,7 @@ export default function OrderList() {
       { title: 'SKU数量', dataIndex: 'skuCount', key: 'skuCount', width: 90, align: 'center' as const, sorter: (a, b) => a.skuCount - b.skuCount },
       { title: '总金额', dataIndex: 'totalAmount', key: 'totalAmount', width: 120, align: 'right' as const, sorter: (a, b) => a.totalAmount - b.totalAmount, render: (amount: number) => (<span style={{ fontWeight: 500 }}>¥{amount.toLocaleString()}</span>) },
       { title: '下单时间', dataIndex: 'createTime', key: 'createTime', width: 160, sorter: (a, b) => a.createTime.localeCompare(b.createTime), render: (t: string) => t.replace('T', ' ').substring(0, 16) },
-      { title: '当前状态', dataIndex: 'status', key: 'status', width: 100, render: (s: OrderStatus) => (<Tag color={s === 'EXCEPTION' ? '#E11D48' : s === 'COMPLETED' ? '#16A34A' : '#FF6B00'}>{ORDER_STATUS_MAP[s]}</Tag>) },
+      { title: '当前状态', dataIndex: 'status', key: 'status', width: 100, render: (s: OrderStatus) => (<Tag color={ORDER_STATUS_COLOR_MAP[s]}>{ORDER_STATUS_MAP[s]}</Tag>) },
       { title: 'VIN码', key: 'vinCode', width: 170, render: (_: unknown, record: OrderDTO) => (<Tooltip title={record.vinCodes.join(', ')}><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{record.vinCodes[0]}{record.vinCodes.length > 1 ? <Tag style={{ marginLeft: 4, fontSize: 10 }}>+{record.vinCodes.length - 1}</Tag> : null}</span></Tooltip>) },
       { title: '基地来源', dataIndex: 'baseSource', key: 'baseSource', width: 100 },
       { title: '缺件', dataIndex: 'shortageFlag', key: 'shortageFlag', width: 60, align: 'center' as const, render: (flag: boolean) => flag ? <Tooltip title="有缺件"><ExclamationCircleOutlined style={{ color: '#E11D48', fontSize: 16 }} /></Tooltip> : null },
@@ -168,14 +184,14 @@ export default function OrderList() {
       case 'workflow':
         return (
           <div>
-            <div style={{ marginBottom: 16 }}><Text strong>调整订单状态流程节点（启用/禁用）：</Text></div>
+            <div style={{ marginBottom: 16 }}><Text strong>自定义订单流程节点（与订单详情页状态条同步）</Text></div>
             <List size="small" dataSource={workflow.steps} renderItem={(step, idx) => (
               <List.Item actions={[<Switch key="en" size="small" checked={step.enabled} onChange={(v) => { setWorkflow((p) => ({ ...p, steps: p.steps.map((s, i) => i === idx ? { ...s, enabled: v } : s) })); }} />]}>
                 <Space><Tag color="#FF6B00">{idx + 1}</Tag><Text delete={!step.enabled}>{step.label}</Text></Space>
               </List.Item>
             )} />
             <Divider /><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><Text strong>订单完成后自动归档</Text><Switch checked={workflow.autoComplete} onChange={(v) => setWorkflow((p) => ({ ...p, autoComplete: v }))} /></div>
-            <Alert style={{ marginTop: 16 }} message="禁用某节点后，订单将跳过该状态直接流转到下一启用节点" type="info" showIcon />
+            <Alert style={{ marginTop: 16 }} message="启用/禁用节点后，订单详情页的状态流程条将同步更新。禁用某节点后订单将跳过该状态流转到下一启用节点。" type="info" showIcon />
           </div>
         );
       case 'auditRule':
@@ -278,7 +294,7 @@ export default function OrderList() {
             <Dropdown menu={{ items: ALL_COLUMNS.map((col) => ({ key: col.key, label: <Checkbox checked={visibleColumns.includes(col.key)} disabled={col.fixed}>{col.title}</Checkbox>, onClick: () => setVisibleColumns((p) => p.includes(col.key) ? p.filter((k) => k !== col.key) : [...p, col.key]) })) }} trigger={['click']}>
               <Button icon={<SettingOutlined />} size="small">列设置</Button>
             </Dropdown>}
-          items={STATUS_TABS.map((tab) => ({ key: tab.key, label: (<Badge count={statusCounts[tab.key] || 0} overflowCount={999} color={tab.key === 'EXCEPTION' ? '#E11D48' : tab.key === 'ALL' ? '#FF6B00' : '#8C8C8C'} size="small"><span style={{ paddingRight: tab.key === 'ALL' ? 0 : 4 }}>{tab.label}</span></Badge>) }))} />
+          items={STATUS_TABS.map((tab) => ({ key: tab.key, label: (<Badge count={statusCounts[tab.key] || 0} overflowCount={999} color={tab.key === 'EXCEPTION_HOLD' || tab.key === 'EXCEPTION' ? '#E11D48' : tab.key === 'ALL' ? '#FF6B00' : '#8C8C8C'} size="small"><span style={{ paddingRight: tab.key === 'ALL' ? 0 : 4 }}>{tab.label}</span></Badge>) }))} />
       </Card>
 
       {/* 筛选 */}

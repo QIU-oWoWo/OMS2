@@ -4,14 +4,24 @@ export type BizType = 'REGULAR' | 'APPOINTMENT' | 'CUSTOM' | 'CALL_400' | 'REQUI
 export type UrgencyLevel = 'NORMAL' | 'URGENT' | 'CRITICAL';
 export type FulfillMethod = 'DIRECT_SHIP' | 'WAREHOUSE_SHIP';
 export type OrderStatus =
+  // 审核阶段
   | 'PENDING_REVIEW'
+  // 终止
+  | 'ORDER_TERMINATED'
+  | 'CANCELLED'
+  // 履约阶段
   | 'SCHEDULING'
   | 'PICKING'
   | 'READY_TO_SHIP'
+  | 'PARTIALLY_SHIPPED'
   | 'IN_TRANSIT'
   | 'DELIVERED'
-  | 'EXCEPTION'
-  | 'COMPLETED';
+  | 'COMPLETED'
+  // 异常阶段
+  | 'EXCEPTION_HOLD'
+  | 'RETURN_PROCESSING'
+  // 向后兼容旧状态
+  | 'EXCEPTION';
 
 export interface OrderItem {
   skuCode: string;
@@ -20,6 +30,48 @@ export interface OrderItem {
   unitPrice: number;
   subtotal: number;
   shortageQty: number;
+}
+
+// ========== 包裹/行项/缺件策略（三层数据模型） ==========
+
+export type ShortagePolicy = 'SPLIT' | 'HOLD';
+export type PackageStatus = 'PENDING' | 'PICKING' | 'READY' | 'WAITING_RESTOCK' | 'SHIPPED' | 'DELIVERED' | 'COMPLETED';
+export type StockStatus = 'IN_STOCK' | 'OUT_OF_STOCK' | 'PURCHASING';
+export type PackageType = 'ORIGINAL' | 'SUPPLEMENT';
+
+export interface SupplierInfo {
+  supplierName: string;
+  expectedArrivalDate: string;
+  trackingNumber?: string;
+}
+
+/** 行项（扩展 OrderItem，增加库存状态和供应商信息） */
+export interface LineItem extends OrderItem {
+  stockStatus: StockStatus;
+  supplierInfo?: SupplierInfo;
+  belongsToPackageId?: string;
+}
+
+/** 包裹（订单的履约单元） */
+export interface Package {
+  packageId: string;
+  packageType: PackageType;
+  status: PackageStatus;
+  lineItems: LineItem[];
+  trackingNo?: string;
+  logisticsCompany?: string;
+  shipTime?: string;
+  estimatedArrival?: string;
+  shippingMethod: 'WITH_VEHICLE' | 'STANDALONE';
+  /** 基地→经销商物流轨迹 */
+  trackingNodes?: TrackingNode[];
+  /** 供应商物流状态（缺件包裹使用） */
+  supplierStatus?: SupplierLogisticsStatus;
+  supplierTrackingNo?: string;
+  supplierLogisticsCompany?: string;
+  supplierShipTime?: string;
+  supplierEstimatedArrival?: string;
+  supplierTrackingNodes?: TrackingNode[];
 }
 
 export interface OrderDTO {
@@ -33,6 +85,10 @@ export interface OrderDTO {
   vinCodes: string[];
   baseSource: string;
   shortageFlag: boolean;
+  /** 缺件处理策略（排单中阶段确定） */
+  shortagePolicy?: ShortagePolicy;
+  /** 包裹列表（1:N，自底向上推导订单状态） */
+  packages?: Package[];
   skuCount: number;
   totalAmount: number;
   createTime: string;
@@ -97,15 +153,61 @@ export interface OperationLog {
 
 // ========== 状态标签映射 ==========
 
+/** 统一状态色值体系（文档第 11.1 节） */
+export const STATUS_COLORS = {
+  neutral: '#6B7280',
+  normal: '#4F46E5',
+  warning: '#D97706',
+  error: '#DC2626',
+  success: '#059669',
+} as const;
+
 export const ORDER_STATUS_MAP: Record<OrderStatus, string> = {
   PENDING_REVIEW: '待审核',
+  ORDER_TERMINATED: '订单已终止',
+  CANCELLED: '已取消',
   SCHEDULING: '排单中',
   PICKING: '拣货中',
   READY_TO_SHIP: '待发货',
+  PARTIALLY_SHIPPED: '部分发货',
   IN_TRANSIT: '运输中',
   DELIVERED: '已签收',
-  EXCEPTION: '异常',
   COMPLETED: '已完成',
+  EXCEPTION_HOLD: '异常挂起',
+  RETURN_PROCESSING: '退货处理中',
+  EXCEPTION: '异常',
+};
+
+export const ORDER_STATUS_COLOR_MAP: Record<OrderStatus, string> = {
+  PENDING_REVIEW: STATUS_COLORS.neutral,
+  ORDER_TERMINATED: STATUS_COLORS.error,
+  CANCELLED: STATUS_COLORS.neutral,
+  SCHEDULING: STATUS_COLORS.normal,
+  PICKING: STATUS_COLORS.normal,
+  READY_TO_SHIP: STATUS_COLORS.normal,
+  PARTIALLY_SHIPPED: STATUS_COLORS.warning,
+  IN_TRANSIT: STATUS_COLORS.normal,
+  DELIVERED: STATUS_COLORS.success,
+  COMPLETED: STATUS_COLORS.success,
+  EXCEPTION_HOLD: STATUS_COLORS.error,
+  RETURN_PROCESSING: STATUS_COLORS.warning,
+  EXCEPTION: STATUS_COLORS.error,
+};
+
+export const PACKAGE_STATUS_MAP: Record<PackageStatus, string> = {
+  PENDING: '待处理',
+  PICKING: '拣货中',
+  READY: '待发货',
+  WAITING_RESTOCK: '待补货',
+  SHIPPED: '已发货',
+  DELIVERED: '已签收',
+  COMPLETED: '已完成',
+};
+
+export const STOCK_STATUS_MAP: Record<StockStatus, { label: string; color: string }> = {
+  IN_STOCK: { label: '有货', color: STATUS_COLORS.success },
+  OUT_OF_STOCK: { label: '缺货', color: STATUS_COLORS.error },
+  PURCHASING: { label: '采购中', color: STATUS_COLORS.warning },
 };
 
 export const BIZ_TYPE_MAP: Record<BizType, string> = {
@@ -165,10 +267,53 @@ export const ORDER_STATUS_STEPS: OrderStatus[] = [
   'SCHEDULING',
   'PICKING',
   'READY_TO_SHIP',
+  'PARTIALLY_SHIPPED',
   'IN_TRANSIT',
   'DELIVERED',
   'COMPLETED',
 ];
+
+// ========== 订单流程节点（7节点横向步骤条） ==========
+
+/**
+ * 订单流程节点定义
+ * 人工修改入口：增删节点/改名只需编辑此数组，
+ * 并同步维护 STATUS_TO_FLOW_NODE 映射即可。
+ */
+export interface OrderFlowNode {
+  key: string;
+  label: string;
+}
+
+export const ORDER_FLOW_NODES: OrderFlowNode[] = [
+  { key: 'order_placed', label: '下单' },
+  { key: 'review_approved', label: '审核中' },
+  { key: 'scheduling_done', label: '排单中' },
+  { key: 'picking', label: '拣货中' },
+  { key: 'ready_to_ship', label: '待发货' },
+  { key: 'in_transit', label: '运输中' },
+  { key: 'delivered', label: '已签收/完成' },
+];
+
+/**
+ * 订单状态 → 流程节点索引（-1 = 异常/终止，不展示流程条）
+ * 人工修改入口：与 ORDER_FLOW_NODES 同步维护。
+ */
+export const STATUS_TO_FLOW_NODE: Record<OrderStatus, number> = {
+  PENDING_REVIEW: 0,
+  SCHEDULING: 1,
+  PICKING: 3,
+  READY_TO_SHIP: 4,
+  PARTIALLY_SHIPPED: 5,
+  IN_TRANSIT: 5,
+  DELIVERED: 6,
+  COMPLETED: 6,
+  EXCEPTION_HOLD: -1,
+  RETURN_PROCESSING: -1,
+  ORDER_TERMINATED: -1,
+  CANCELLED: -1,
+  EXCEPTION: -1,
+};
 
 // ========== 定制订单相关类型 ==========
 

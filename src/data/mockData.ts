@@ -2,6 +2,7 @@ import type {
   OrderDTO, AppointmentDTO, ExceptionDTO, OperationLog,
   CustomOrderDTO, Call400DTO, TrackingDTO, TrackingNode, ProductDTO,
   TrackStatus, InventoryShareDTO, ProductTag, SplitShipmentData, SupplierLogisticsStatus,
+  LineItem, Package, StockStatus, ShortagePolicy, PackageStatus, SupplierInfo,
 } from '../types';
 
 // ========== 雅迪配件商品池 ==========
@@ -82,59 +83,394 @@ function formatDateShort(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-// ========== 生成订单数据 ==========
+// ========== 状态推导工具函数（文档第三节） ==========
+
+/** 由行项库存状态推导包裹状态 */
+function derivePackageStatus(lineItems: LineItem[]): PackageStatus {
+  const allInStock = lineItems.every((li) => li.stockStatus === 'IN_STOCK');
+  const hasShortage = lineItems.some((li) => li.stockStatus === 'OUT_OF_STOCK' || li.stockStatus === 'PURCHASING');
+  if (allInStock) return 'READY';
+  if (hasShortage) return 'WAITING_RESTOCK';
+  return 'PICKING';
+}
+
+/** 由所有包裹状态聚合推导订单主状态（木桶效应：取最靠前状态） */
+function deriveOrderStatus(packages: Package[], shortagePolicy: ShortagePolicy): OrderStatus {
+  const statuses = packages.map((p) => p.status);
+
+  // 任一包裹 PENDING → SCHEDULING
+  if (statuses.some((s) => s === 'PENDING')) return 'SCHEDULING';
+  // 任一包裹 PICKING → PICKING
+  if (statuses.some((s) => s === 'PICKING')) return 'PICKING';
+  // 任一包裹 WAITING_RESTOCK（HOLD策略下锁定PICKING）
+  if (shortagePolicy === 'HOLD' && statuses.some((s) => s === 'WAITING_RESTOCK')) return 'PICKING';
+  // 所有包裹 READY → READY_TO_SHIP
+  if (statuses.every((s) => s === 'READY')) return 'READY_TO_SHIP';
+  // SPLIT策略：至少一个ORIGINAL SHIPPED + 仍有包裹未SHIPPED → PARTIALLY_SHIPPED
+  if (shortagePolicy === 'SPLIT') {
+    const hasShipped = packages.some((p) => p.packageType === 'ORIGINAL' && (p.status === 'SHIPPED' || p.status === 'DELIVERED' || p.status === 'COMPLETED'));
+    const hasUnshipped = packages.some((p) => p.status !== 'SHIPPED' && p.status !== 'DELIVERED' && p.status !== 'COMPLETED');
+    if (hasShipped && hasUnshipped) return 'PARTIALLY_SHIPPED';
+  }
+  // 所有包裹 SHIPPED → IN_TRANSIT
+  if (statuses.every((s) => s === 'SHIPPED' || s === 'DELIVERED' || s === 'COMPLETED') && statuses.some((s) => s === 'SHIPPED')) return 'IN_TRANSIT';
+  // 所有包裹 DELIVERED → DELIVERED
+  if (statuses.every((s) => s === 'DELIVERED' || s === 'COMPLETED') && statuses.some((s) => s === 'DELIVERED')) return 'DELIVERED';
+  // 所有包裹 COMPLETED → COMPLETED
+  if (statuses.every((s) => s === 'COMPLETED')) return 'COMPLETED';
+  // 兜底：READY_TO_SHIP
+  return 'READY_TO_SHIP';
+}
+
+/** 根据目标订单状态反向设定包裹状态（用于mock数据确保覆盖所有状态） */
+function setPackageStatusesForTarget(packages: Package[], targetStatus: OrderStatus, policy: ShortagePolicy): void {
+  const hasOriginal = packages.some((p) => p.packageType === 'ORIGINAL');
+  const hasSupplement = packages.some((p) => p.packageType === 'SUPPLEMENT');
+
+  switch (targetStatus) {
+    case 'SCHEDULING':
+    case 'PENDING_REVIEW':
+      packages.forEach((p) => { p.status = 'PENDING'; });
+      break;
+    case 'PICKING':
+      packages.forEach((p) => { p.status = p.packageType === 'ORIGINAL' ? 'PICKING' : 'PENDING'; });
+      break;
+    case 'READY_TO_SHIP':
+      packages.forEach((p) => { p.status = 'READY'; });
+      break;
+    case 'PARTIALLY_SHIPPED':
+      // 仅SPLIT策略：ORIGINAL已发货，SUPPLEMENT还在等待
+      if (policy === 'SPLIT' && hasSupplement) {
+        packages.forEach((p) => {
+          p.status = p.packageType === 'ORIGINAL' ? 'SHIPPED' : 'WAITING_RESTOCK';
+        });
+      }
+      break;
+    case 'IN_TRANSIT':
+      packages.forEach((p) => { p.status = 'SHIPPED'; });
+      break;
+    case 'DELIVERED':
+      packages.forEach((p) => { p.status = 'DELIVERED'; });
+      break;
+    case 'COMPLETED':
+      packages.forEach((p) => { p.status = 'COMPLETED'; });
+      break;
+    case 'EXCEPTION_HOLD':
+      packages.forEach((p) => { p.status = 'PENDING'; });
+      break;
+    case 'ORDER_TERMINATED':
+    case 'CANCELLED':
+      packages.forEach((p) => { p.status = 'PENDING'; });
+      break;
+    case 'RETURN_PROCESSING':
+      packages.forEach((p) => { p.status = 'DELIVERED'; });
+      break;
+    default:
+      packages.forEach((p) => { p.status = 'READY'; });
+  }
+}
+
+/** 为行项分配库存状态 */
+function assignStockStatus(lineItem: LineItem, desiredStock: StockStatus): void {
+  lineItem.stockStatus = desiredStock;
+}
+
+/** 生成供应商信息 */
+function makeSupplierInfo(): SupplierInfo {
+  const suppliers = [
+    { name: '东方汽配（浙江）有限公司', arrivalDays: randomInt(3, 10) },
+    { name: 'BOSCH汽车部件（上海）有限公司', arrivalDays: randomInt(2, 7) },
+    { name: 'MANN+HUMMEL滤清器（苏州）有限公司', arrivalDays: randomInt(4, 12) },
+    { name: '雅迪原厂配件中心', arrivalDays: randomInt(1, 5) },
+  ];
+  const s = randomPick(suppliers);
+  const arrivalDate = new Date(2026, 6, 16 + s.arrivalDays);
+  return {
+    supplierName: s.name,
+    expectedArrivalDate: formatDateShort(arrivalDate),
+    trackingNumber: Math.random() > 0.5 ? `SF${String(randomInt(100000000000, 999999999999))}` : undefined,
+  };
+}
+
+/** 生成详细物流轨迹节点 */
+function generateTrackingNodes(
+  shipTime: string,
+  estimatedArrival: string,
+  logisticsCompany: string,
+  pkgStatus: string,
+): TrackingNode[] {
+  const shipDate = new Date(shipTime.replace('T', ' ').substring(0, 10));
+  const arrivalDate = new Date(estimatedArrival);
+  const nodes: TrackingNode[] = [];
+  const transitCities = ['杭州转运中心', '南京转运中心', '合肥转运中心', '武汉转运中心', '郑州转运中心', '长沙转运中心'];
+  const destCity = randomPick(['杭州', '南京', '合肥', '武汉', '郑州', '长沙', '成都', '广州']);
+  const isDelivered = pkgStatus === 'DELIVERED' || pkgStatus === 'COMPLETED';
+
+  // 1. 揽收
+  nodes.push({
+    time: formatDate(new Date(shipDate.getTime() + randomInt(1, 4) * 3600000)),
+    location: '华东分拣中心',
+    description: `【${logisticsCompany}】已揽收，快递员已收件`,
+  });
+
+  // 2. 到达分拣中心
+  nodes.push({
+    time: formatDate(new Date(shipDate.getTime() + randomInt(5, 10) * 3600000)),
+    location: '华东分拣中心',
+    description: '快件已到达分拣中心，正在分拣处理',
+  });
+
+  // 3. 离开分拣中心
+  const transitCity = randomPick(transitCities);
+  nodes.push({
+    time: formatDate(new Date(shipDate.getTime() + randomInt(10, 16) * 3600000)),
+    location: '华东分拣中心',
+    description: '快件已离开分拣中心，发往下一站',
+  });
+
+  // 4. 到达中转站
+  nodes.push({
+    time: formatDate(new Date(shipDate.getTime() + randomInt(16, 24) * 3600000)),
+    location: transitCity,
+    description: `快件已到达${transitCity}`,
+  });
+
+  // 5. 离开中转站
+  nodes.push({
+    time: formatDate(new Date(shipDate.getTime() + randomInt(20, 30) * 3600000)),
+    location: transitCity,
+    description: `快件已从${transitCity}发出`,
+  });
+
+  if (isDelivered) {
+    // 6. 到达目的地网点
+    nodes.push({
+      time: formatDate(new Date(arrivalDate.getTime() - randomInt(6, 12) * 3600000)),
+      location: `${destCity}配送网点`,
+      description: `快件已到达${destCity}配送网点`,
+    });
+
+    // 7. 派送中
+    nodes.push({
+      time: formatDate(new Date(arrivalDate.getTime() - randomInt(2, 5) * 3600000)),
+      location: `${destCity}配送网点`,
+      description: '快递员正在派送中，请保持电话畅通',
+    });
+
+    // 8. 已签收
+    nodes.push({
+      time: formatDate(new Date(arrivalDate.getTime() - randomInt(0, 2) * 3600000)),
+      location: destCity,
+      description: `已签收，签收人：本人（${logisticsCompany}）`,
+    });
+  } else {
+    // 在途
+    nodes.push({
+      time: formatDate(new Date(shipDate.getTime() + randomInt(28, 36) * 3600000)),
+      location: transitCity,
+      description: '快件运输中，预计即将到达目的地',
+    });
+  }
+
+  return nodes;
+}
+
+// ========== 生成订单数据（自底向上推导） ==========
 
 export function generateOrders(): OrderDTO[] {
-  const statuses = [
-    'PENDING_REVIEW', 'SCHEDULING', 'PICKING', 'READY_TO_SHIP',
-    'IN_TRANSIT', 'DELIVERED', 'EXCEPTION', 'COMPLETED',
-  ] as const;
-  const bizTypes = ['REGULAR', 'APPOINTMENT', 'CUSTOM', 'REQUISITION'] as const;
-  const urgencies = ['NORMAL', 'URGENT', 'CRITICAL'] as const;
-  const methods = ['DIRECT_SHIP', 'WAREHOUSE_SHIP'] as const;
   const bases = ['华东基地', '华南基地', '华北基地', '西南基地'];
   const vins = [
     'LSVAU2180N2012345', 'LSVAU2190N2015678', 'LSVAU2200N2018901',
     'LSVAU2210N2021123', 'LSVAU2220N2024456', 'LSVAU2230N2027789',
     'LSVAU2240N2030012', 'LSVAU2250N2033345',
   ];
+  const logisticsCompanies = ['顺丰速运', '京东物流', '德邦快递', '中通快递'];
+
+  // 确保各状态覆盖的分布（30个订单）
+  const statusDistribution: OrderStatus[] = [
+    'PENDING_REVIEW', 'PENDING_REVIEW', 'PENDING_REVIEW',
+    'ORDER_TERMINATED', 'ORDER_TERMINATED',
+    'CANCELLED', 'CANCELLED',
+    'SCHEDULING', 'SCHEDULING',
+    'PICKING', 'PICKING',
+    'READY_TO_SHIP', 'READY_TO_SHIP',
+    'PARTIALLY_SHIPPED', 'PARTIALLY_SHIPPED', 'PARTIALLY_SHIPPED',
+    'IN_TRANSIT', 'IN_TRANSIT', 'IN_TRANSIT',
+    'DELIVERED', 'DELIVERED', 'DELIVERED',
+    'COMPLETED', 'COMPLETED', 'COMPLETED',
+    'EXCEPTION_HOLD', 'EXCEPTION_HOLD',
+    'RETURN_PROCESSING',
+  ];
 
   const orders: OrderDTO[] = [];
 
   for (let i = 0; i < 30; i++) {
     const dealer = randomPick(DEALERS);
-    const status = randomPick(statuses);
+    const targetStatus = statusDistribution[i % statusDistribution.length];
     const itemsCount = randomInt(1, 5);
-    const items = randomPickN(YADI_PARTS, itemsCount).map((part) => {
+    const bizType = (['REGULAR', 'APPOINTMENT', 'CUSTOM', 'REQUISITION'] as const)[i % 4];
+    const shippingMethod = (i % 3 === 0) ? 'WITH_VEHICLE' as const : 'STANDALONE' as const;
+    const createDate = new Date(2026, 6, randomInt(1, 16), randomInt(8, 18), randomInt(0, 59), randomInt(0, 59));
+    const orderNo = `OMS${String(20260716 - randomInt(0, 999)).padStart(6, '0')}${String(i + 1).padStart(4, '0')}`;
+
+    // Step 1: 生成行项（OrderItem），每个附 stockStatus
+    const isTerminal = ['ORDER_TERMINATED', 'CANCELLED'].includes(targetStatus);
+    const isException = targetStatus === 'EXCEPTION_HOLD';
+    const needsShortage = ['PICKING', 'PARTIALLY_SHIPPED', 'EXCEPTION_HOLD'].includes(targetStatus) ||
+      (targetStatus === 'READY_TO_SHIP' && i % 3 === 0); // 部分READY_TO_SHIP为HOLD策略
+    const isDeliveredOrCompleted = ['DELIVERED', 'COMPLETED', 'RETURN_PROCESSING'].includes(targetStatus);
+    const isShipped = ['IN_TRANSIT', 'DELIVERED', 'COMPLETED', 'RETURN_PROCESSING'].includes(targetStatus);
+    const isSplit = targetStatus === 'PARTIALLY_SHIPPED';
+
+    const rawItems = randomPickN(YADI_PARTS, itemsCount).map((part) => {
       const qty = randomInt(1, 10);
-      const shortageQty = Math.random() > 0.8 ? randomInt(1, qty) : 0;
       return {
         skuCode: part.skuCode,
         skuName: part.skuName,
         quantity: qty,
         unitPrice: part.unitPrice,
         subtotal: part.unitPrice * qty,
-        shortageQty,
+        shortageQty: 0,
       };
     });
 
-    const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
-    const shortageFlag = items.some((item) => item.shortageQty > 0);
-    const createDate = new Date(2026, 6, randomInt(1, 16), randomInt(8, 18), randomInt(0, 59), randomInt(0, 59));
-    const orderNo = `OMS${String(20260716 - randomInt(0, 999)).padStart(6, '0')}${String(i + 1).padStart(4, '0')}`;
+    // Step 2: 分配 stockStatus 和 shortagePolicy
+    let shortagePolicy: ShortagePolicy = 'HOLD';
+    const lineItems: LineItem[] = rawItems.map((item, idx) => {
+      let stockStatus: StockStatus = 'IN_STOCK';
+      let shortageQty = 0;
+
+      if (needsShortage && idx === itemsCount - 1) {
+        // 最后一个行项设为缺货
+        stockStatus = randomPick(['OUT_OF_STOCK', 'PURCHASING'] as StockStatus[]);
+        shortageQty = Math.max(1, Math.floor(item.quantity / 2));
+        shortagePolicy = isSplit ? 'SPLIT' : 'HOLD';
+      }
+
+      // HOLD策略下的READY_TO_SHIP: 缺货项已补齐
+      if (targetStatus === 'READY_TO_SHIP' && !isSplit && idx === itemsCount - 1 && i % 3 === 0) {
+        stockStatus = 'IN_STOCK';
+        shortageQty = 0;
+        shortagePolicy = 'HOLD';
+      }
+
+      // 已发货/已签收/已完成: 所有缺货已解决
+      if (isDeliveredOrCompleted || isShipped) {
+        stockStatus = 'IN_STOCK';
+        shortageQty = 0;
+      }
+
+      const li: LineItem = {
+        ...item,
+        shortageQty,
+        stockStatus,
+        supplierInfo: stockStatus !== 'IN_STOCK' ? makeSupplierInfo() : undefined,
+      };
+      return li;
+    });
+
+    const hasShortage = lineItems.some((li) => li.stockStatus !== 'IN_STOCK');
+    if (!hasShortage) shortagePolicy = 'HOLD';
+
+    // Step 3: 按 shortagePolicy 生成 Package[]
+    const packages: Package[] = [];
+    const pkgId = (suffix: string) => `PKG-${orderNo}-${suffix}`;
+
+    if (shortagePolicy === 'SPLIT' && hasShortage) {
+      // SPLIT: 有货 → ORIGINAL, 缺货 → SUPPLEMENT
+      const inStockItems = lineItems.filter((li) => li.stockStatus === 'IN_STOCK');
+      const shortageItems = lineItems.filter((li) => li.stockStatus !== 'IN_STOCK');
+
+      if (inStockItems.length > 0) {
+        packages.push({
+          packageId: pkgId('ORIG'),
+          packageType: 'ORIGINAL',
+          status: 'PENDING',
+          lineItems: inStockItems.map((li) => ({ ...li, belongsToPackageId: pkgId('ORIG') })),
+          shippingMethod,
+        });
+      }
+      if (shortageItems.length > 0) {
+        packages.push({
+          packageId: pkgId('SUPP'),
+          packageType: 'SUPPLEMENT',
+          status: 'PENDING',
+          lineItems: shortageItems.map((li) => ({ ...li, belongsToPackageId: pkgId('SUPP') })),
+          shippingMethod,
+        });
+      }
+    } else {
+      // HOLD 或无缺货: 单一 ORIGINAL 包裹
+      packages.push({
+        packageId: pkgId('MAIN'),
+        packageType: 'ORIGINAL',
+        status: 'PENDING',
+        lineItems: lineItems.map((li) => ({ ...li, belongsToPackageId: pkgId('MAIN') })),
+        shippingMethod,
+      });
+    }
+
+    // Step 4 & 5: 设定包裹状态并推导订单状态
+    setPackageStatusesForTarget(packages, targetStatus, shortagePolicy);
+
+    // 为已发货/已签收包裹填充物流信息
+    packages.forEach((pkg) => {
+      if (['SHIPPED', 'DELIVERED', 'COMPLETED'].includes(pkg.status)) {
+        const shipMs = createDate.getTime() + randomInt(1, 3) * 24 * 3600000;
+        const arrivalDays = shippingMethod === 'WITH_VEHICLE' ? 3 : 2;
+        const logisticsCompany = randomPick(logisticsCompanies);
+        const shipTime = formatDate(new Date(shipMs));
+        const estimatedArrival = formatDateShort(new Date(shipMs + arrivalDays * 24 * 3600000));
+        pkg.logisticsCompany = logisticsCompany;
+        pkg.trackingNo = `SF${String(randomInt(100000000000, 999999999999))}`;
+        pkg.shipTime = shipTime;
+        pkg.estimatedArrival = estimatedArrival;
+        pkg.trackingNodes = generateTrackingNodes(shipTime, estimatedArrival, logisticsCompany, pkg.status);
+      }
+
+      // 缺货包裹的供应商物流状态
+      const hasShortageItems = pkg.lineItems.some((li) => li.stockStatus !== 'IN_STOCK');
+      if (hasShortageItems && pkg.packageType === 'SUPPLEMENT') {
+        const charSum = orderNo.split('').reduce((s, c) => s + c.charCodeAt(0), 0);
+        const supStatus: SupplierLogisticsStatus = charSum % 3 === 0 ? 'ARRIVED_AT_BASE' : charSum % 3 === 1 ? 'SHIPPED' : 'PENDING';
+        pkg.supplierStatus = supStatus;
+        if (supStatus !== 'PENDING') {
+          pkg.supplierLogisticsCompany = '圆通速递';
+          pkg.supplierTrackingNo = `YT${String(Math.abs(charSum * 3)).padStart(12, '0')}`;
+          pkg.supplierShipTime = formatDate(new Date(createDate.getTime() + randomInt(-2, 1) * 24 * 3600000));
+        }
+        pkg.supplierEstimatedArrival = formatDateShort(new Date(createDate.getTime() + randomInt(2, 5) * 24 * 3600000));
+      }
+    });
+
+    // 最终聚合推导（验证一致性）
+    const derivedStatus = isTerminal ? targetStatus :
+      targetStatus === 'EXCEPTION_HOLD' ? 'EXCEPTION_HOLD' :
+      targetStatus === 'RETURN_PROCESSING' ? 'RETURN_PROCESSING' :
+      deriveOrderStatus(packages, shortagePolicy);
+
+    const totalAmount = rawItems.reduce((sum, item) => sum + item.subtotal, 0);
+    const shortageFlag = lineItems.some((li) => li.shortageQty > 0);
+    const allItems: OrderItem[] = lineItems.map(({ stockStatus, supplierInfo, belongsToPackageId, ...rest }) => rest);
+
+    // 订单级别物流信息（向后兼容）
+    const shippedPkgs = packages.filter((p) => p.trackingNo);
+    const primaryPkg = shippedPkgs[0];
 
     orders.push({
       orderNo,
       dealerId: dealer.dealerId,
       dealerName: dealer.dealerName,
-      bizType: randomPick(bizTypes),
-      urgencyLevel: randomPick(urgencies),
-      fulfillMethod: randomPick(methods),
-      status,
+      bizType,
+      urgencyLevel: isException ? 'CRITICAL' : randomPick(['NORMAL', 'URGENT', 'CRITICAL'] as const),
+      fulfillMethod: randomPick(['DIRECT_SHIP', 'WAREHOUSE_SHIP'] as const),
+      status: derivedStatus,
+      shortagePolicy: hasShortage || isSplit ? shortagePolicy : undefined,
+      packages,
       vinCodes: Array.from({ length: randomInt(1, 3) }, () => randomPick(vins)),
       baseSource: randomPick(bases),
       shortageFlag,
-      skuCount: items.length,
+      skuCount: rawItems.length,
       totalAmount: Math.round(totalAmount * 100) / 100,
       createTime: formatDate(createDate),
       receiverProvince: dealer.province,
@@ -143,40 +479,13 @@ export function generateOrders(): OrderDTO[] {
       receiverAddress: `${dealer.district}雅迪大道${randomInt(1, 200)}号`,
       receiverName: `${randomPick(['张', '李', '王', '赵', '陈', '刘'])}${randomPick(['伟', '强', '明', '华', '军', '磊'])}`,
       receiverPhone: `1${randomInt(30, 99)}${String(randomInt(10000000, 99999999))}`,
-      items,
-      trackingNo: ['IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(status) ? `SF${String(randomInt(100000000000, 999999999999))}` : undefined,
-      logisticsCompany: ['IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(status) ? randomPick(['顺丰速运', '京东物流', '德邦快递', '中通快递']) : undefined,
-      shippingMethod: (i % 3 === 0) ? 'WITH_VEHICLE' as const : 'STANDALONE' as const,
+      items: allItems,
+      trackingNo: primaryPkg?.trackingNo,
+      logisticsCompany: primaryPkg?.logisticsCompany,
+      shippingMethod,
       linkedPlanNo: undefined,
     });
   }
-
-  // 确保各状态都有覆盖
-  const orderedStatuses: typeof statuses = [
-    'PENDING_REVIEW', 'PENDING_REVIEW', 'PENDING_REVIEW',
-    'SCHEDULING', 'SCHEDULING',
-    'PICKING', 'PICKING',
-    'READY_TO_SHIP', 'READY_TO_SHIP',
-    'IN_TRANSIT', 'IN_TRANSIT', 'IN_TRANSIT',
-    'DELIVERED', 'DELIVERED',
-    'EXCEPTION', 'EXCEPTION',
-    'COMPLETED', 'COMPLETED', 'COMPLETED',
-  ];
-
-  orders.forEach((order, index) => {
-    order.status = orderedStatuses[index % orderedStatuses.length];
-    // 确保 tracking/logistics 与最终状态一致
-    const finalStatus = order.status;
-    const needTracking = ['IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(finalStatus);
-    if (needTracking && !order.trackingNo) {
-      order.trackingNo = `SF${String(randomInt(100000000000, 999999999999))}`;
-      order.logisticsCompany = randomPick(['顺丰速运', '京东物流', '德邦快递', '中通快递']);
-    }
-    if (!needTracking) {
-      order.trackingNo = undefined;
-      order.logisticsCompany = undefined;
-    }
-  });
 
   return orders.sort((a, b) => b.createTime.localeCompare(a.createTime));
 }
@@ -225,7 +534,7 @@ export function generateExceptions(orders: OrderDTO[]): ExceptionDTO[] {
     LOGISTICS_EXCEPTION: ['物流轨迹显示派送异常，收件地址无法找到', '运输途中包裹外包装严重破损，客户拒收', '物流信息超过48小时未更新'],
   };
 
-  const exceptionOrders = orders.filter((o) => o.status === 'EXCEPTION').slice(0, 10);
+  const exceptionOrders = orders.filter((o) => o.status === 'EXCEPTION_HOLD' || o.status === 'EXCEPTION').slice(0, 10);
   if (exceptionOrders.length === 0) return [];
 
   return exceptionOrders.map((order, i) => {
@@ -693,87 +1002,60 @@ export function getSplitShipmentData(orderNo: string): SplitShipmentData | null 
   };
 }
 
-// ========== 统一包裹数据（所有订单按包裹维度，非拆分=1个，拆分=2个） ==========
+// ========== 统一包裹数据（优先从 order.packages 读取） ==========
 
 export function getOrderParcels(orderNo: string): SplitShipmentBatch[] {
-  const splitData = getSplitShipmentData(orderNo);
-  if (splitData) return [splitData.primary, splitData.secondary];
-
-  // 非拆分订单：构建单个包裹
   const order = mockOrders.find((o) => o.orderNo === orderNo);
   if (!order) return [];
 
+  // 优先从新的 packages 字段读取
+  if (order.packages && order.packages.length > 0) {
+    return order.packages.map((pkg) => {
+      const isShortagePkg = pkg.lineItems.some((li) => li.stockStatus !== 'IN_STOCK');
+      const pkgStatus: 'IN_TRANSIT' | 'DELIVERED' | 'PENDING' =
+        pkg.status === 'DELIVERED' || pkg.status === 'COMPLETED' ? 'DELIVERED' :
+        pkg.status === 'SHIPPED' ? 'IN_TRANSIT' : 'PENDING';
+
+      return {
+        trackingNo: pkg.trackingNo || `SF${String(Math.abs(orderNo.split('').reduce((s, c) => s + c.charCodeAt(0), 0))).padStart(12, '0')}`,
+        label: pkg.packageType === 'SUPPLEMENT' ? '补发包裹' : (order.packages!.length > 1 ? '主包裹' : '包裹'),
+        items: pkg.lineItems.map(({ stockStatus, supplierInfo, belongsToPackageId, ...rest }) => rest),
+        totalQty: pkg.lineItems.reduce((s, li) => s + li.quantity, 0),
+        status: pkgStatus,
+        shipTime: pkg.shipTime || formatDate(new Date()),
+        estimatedArrival: pkg.estimatedArrival || formatDateShort(new Date()),
+        shippingMethod: pkg.shippingMethod,
+        logisticsCompany: pkg.logisticsCompany,
+        trackingNodes: undefined, // 由 OrderDetail 动态构建
+        supplierStatus: pkg.supplierStatus,
+        supplierTrackingNo: pkg.supplierTrackingNo,
+        supplierLogisticsCompany: pkg.supplierLogisticsCompany,
+        supplierShipTime: pkg.supplierShipTime,
+        supplierEstimatedArrival: pkg.supplierEstimatedArrival,
+        supplierTrackingNodes: pkg.supplierTrackingNodes,
+      };
+    });
+  }
+
+  // 向后兼容：无 packages 字段时从旧逻辑构建
   const orderCreateMs = new Date(order.createTime).getTime();
   const isShipped = ['IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(order.status);
   const warehouseName = randomPick(['华东仓', '华南仓', '华北仓', '西南仓']);
   const logisticsCompany = order.logisticsCompany || '顺丰速运';
   const trackingNo = order.trackingNo || `SF${String(Math.abs(orderNo.split('').reduce((s, c) => s + c.charCodeAt(0), 0))).padStart(12, '0')}`;
-
   const shipTime = isShipped ? order.createTime : formatDate(new Date(orderCreateMs + 3 * 24 * 3600000));
   const arrivalDays = order.shippingMethod === 'WITH_VEHICLE' ? 3 : 2;
   const estArrival = formatDateShort(new Date(new Date(shipTime).getTime() + arrivalDays * 24 * 3600000));
-
   const parcelStatus: 'IN_TRANSIT' | 'DELIVERED' | 'PENDING' =
     order.status === 'DELIVERED' || order.status === 'COMPLETED' ? 'DELIVERED' :
     order.status === 'IN_TRANSIT' ? 'IN_TRANSIT' : 'PENDING';
 
-  // 缺件信息（如果有）
-  const shortageItems = order.items.filter((it) => it.shortageQty > 0);
-  const hasShortage = shortageItems.length > 0;
-
-  let supplierStatus: SupplierLogisticsStatus | undefined;
-  let supplierTrackingNo: string | undefined;
-  let supplierLogisticsCompany: string | undefined;
-  let supplierShipTime: string | undefined;
-  let supplierEstimatedArrival: string | undefined;
-  let supplierTrackingNodes: TrackingNode[] | undefined;
-
-  if (hasShortage) {
-    const charSum = orderNo.split('').reduce((s, c) => s + c.charCodeAt(0), 0);
-    supplierStatus = charSum % 3 === 0 ? 'ARRIVED_AT_BASE' : charSum % 3 === 1 ? 'SHIPPED' : 'PENDING';
-    supplierLogisticsCompany = supplierStatus !== 'PENDING' ? '圆通速递' : undefined;
-    supplierTrackingNo = supplierStatus !== 'PENDING' ? `YT${String(Math.abs(charSum * 3)).padStart(12, '0')}` : undefined;
-    supplierShipTime = supplierStatus !== 'PENDING'
-      ? formatDate(new Date(orderCreateMs + (isShipped ? 1 : -2) * 24 * 3600000))
-      : undefined;
-
-    if (supplierStatus === 'PENDING') {
-      supplierEstimatedArrival = formatDateShort(new Date(orderCreateMs + 3 * 24 * 3600000));
-    } else if (supplierStatus === 'SHIPPED') {
-      supplierEstimatedArrival = formatDateShort(new Date(orderCreateMs + 1 * 24 * 3600000));
-    } else {
-      supplierEstimatedArrival = formatDateShort(new Date(orderCreateMs - 1 * 24 * 3600000));
-    }
-
-    if (supplierStatus !== 'PENDING' && supplierShipTime) {
-      const sMs = new Date(supplierShipTime).getTime();
-      supplierTrackingNodes = [
-        { time: formatDate(new Date(sMs + 1 * 3600000)), location: '供应商发货地', description: `${supplierLogisticsCompany}已揽收` },
-        { time: formatDate(new Date(sMs + 8 * 3600000)), location: '在途中转', description: '快件在运输途中' },
-      ];
-      if (supplierStatus === 'ARRIVED_AT_BASE') {
-        supplierTrackingNodes.push({ time: formatDate(new Date(new Date(supplierEstimatedArrival!).getTime())), location: warehouseName, description: '快件已到达基地仓库' });
-      }
-    }
-  }
-
   return [{
-    trackingNo,
-    label: '包裹',
-    items: order.items,
+    trackingNo, label: '包裹', items: order.items,
     totalQty: order.items.reduce((s, i) => s + i.quantity, 0),
-    status: parcelStatus,
-    shipTime,
-    estimatedArrival: estArrival,
-    shippingMethod: order.shippingMethod,
-    logisticsCompany,
-    trackingNodes: generateBatchTrackingNodes(trackingNo, parcelStatus, shipTime, logisticsCompany, order.receiverCity, order.receiverDistrict, warehouseName),
-    supplierStatus,
-    supplierTrackingNo,
-    supplierLogisticsCompany,
-    supplierShipTime,
-    supplierEstimatedArrival,
-    supplierTrackingNodes,
+    status: parcelStatus, shipTime, estimatedArrival: estArrival,
+    shippingMethod: order.shippingMethod, logisticsCompany,
+    trackingNodes: undefined,
   }];
 }
 
@@ -1178,30 +1460,34 @@ mockOrders.filter((o) => ['PENDING_REVIEW', 'SCHEDULING', 'PICKING', 'READY_TO_S
 
 export function getOperationLogs(order: typeof mockOrders[number]) {
   const baseActions: { action: string; remark?: string }[] = [];
-  const steps = ['PENDING_REVIEW', 'SCHEDULING', 'PICKING', 'READY_TO_SHIP', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'];
-  const stepLabels = ['创建订单', '审核通过', '拣货完成', '确认发货', '物流揽收', '客户签收', '订单归档'];
+  const steps = ['PENDING_REVIEW', 'SCHEDULING', 'PICKING', 'READY_TO_SHIP', 'PARTIALLY_SHIPPED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'];
+  const stepLabels = ['创建订单', '审核通过', '拣货完成', '确认发货', '部分包裹已发货', '物流揽收', '客户签收', '订单归档'];
   const currentIdx = steps.indexOf(order.status);
 
   baseActions.push({ action: '创建订单', remark: `经销商 ${order.dealerName} 提交订单` });
 
-  const ops = OPERATORS;
-  for (let i = 1; i <= Math.min(currentIdx, stepLabels.length - 1); i++) {
-    if (i >= 1) {
-      baseActions.push({
-        action: stepLabels[i],
-        remark: i === 1 && order.status === 'EXCEPTION' ? '订单转入异常处理流程' : undefined,
-      });
+  const isTerminal = ['ORDER_TERMINATED', 'CANCELLED'].includes(order.status);
+  const isException = order.status === 'EXCEPTION_HOLD' || order.status === 'EXCEPTION';
+
+  if (isTerminal) {
+    baseActions.push({ action: '审核不通过', remark: order.status === 'CANCELLED' ? '经销商主动取消订单' : '订单审核未通过，已终止' });
+  } else if (isException) {
+    baseActions.push({ action: '审核通过', remark: '订单进入履约流程' });
+    baseActions.push({ action: '拣货完成' });
+    baseActions.push({ action: '标记异常', remark: '物流丢件，所有包裹异常，订单挂起' });
+  } else {
+    const ops = OPERATORS;
+    for (let i = 1; i <= Math.min(currentIdx, stepLabels.length - 1) + 1; i++) {
+      if (i >= 1) {
+        baseActions.push({ action: stepLabels[Math.min(i, stepLabels.length - 1)] });
+      }
     }
   }
 
-  if (order.status === 'EXCEPTION') {
-    baseActions.push({ action: '标记异常', remark: 'SKU缺件，已通知仓库补发' });
-  }
-
   return baseActions.map((a, i) => {
-    const op = ops[(i + order.orderNo.length) % ops.length];
+    const op = OPERATORS[(i + order.orderNo.length) % OPERATORS.length];
     const baseTime = new Date(order.createTime);
-    const logDate = new Date(baseTime.getTime() + i * randomInt(2, 8) * 3600000); // 每个步骤间隔2-8小时
+    const logDate = new Date(baseTime.getTime() + i * randomInt(2, 8) * 3600000);
     return { time: formatDate(logDate), operator: op.name, role: op.role, action: a.action, remark: a.remark };
   }).sort((a, b) => b.time.localeCompare(a.time));
 }
