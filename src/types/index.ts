@@ -439,7 +439,7 @@ export type ProductStatus = 'ON_SHELF' | 'OFF_SHELF' | 'DISABLED';
 export const PRODUCT_STATUS_MAP: Record<ProductStatus, { label: string; color: string }> = {
   ON_SHELF: { label: '上架', color: '#16A34A' },
   OFF_SHELF: { label: '下架', color: '#8C8C8C' },
-  DISABLED: { label: '停用', color: '#E11D48' },
+  DISABLED: { label: '淘汰', color: '#E11D48' },
 };
 
 export interface ProductDTO {

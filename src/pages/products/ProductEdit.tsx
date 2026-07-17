@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Card, Form, Input, InputNumber, Select, Button, Space, Typography, Breadcrumb, Row, Col,
-  Divider, message, Upload,
+  Divider, message, Upload, Tag,
 } from 'antd';
 import {
   SaveOutlined, ArrowLeftOutlined, SendOutlined, UploadOutlined, InboxOutlined,
@@ -176,7 +176,7 @@ export default function ProductEdit() {
                 <Select options={[
                   { value: 'ON_SHELF', label: '上架' },
                   { value: 'OFF_SHELF', label: '下架' },
-                  { value: 'DISABLED', label: '停用' },
+                  { value: 'DISABLED', label: '淘汰' },
                 ]} />
               </Form.Item>
             </Card>

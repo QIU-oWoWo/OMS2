@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card, Table, Input, Select, Button, Space, Tag, Typography, Row, Col, message, Modal, Dropdown, Checkbox,
-  Drawer, Switch, InputNumber, List, Divider, Alert, Empty, Collapse,
+  Drawer, Switch, InputNumber, List, Divider, Alert, Empty, Collapse, Popconfirm,
 } from 'antd';
 import {
   SearchOutlined, ReloadOutlined, PlusOutlined, DownloadOutlined,
@@ -64,6 +64,28 @@ export default function ProductList() {
     skuCode: '', skuName: '', category: '', statuses: [] as string[], baseSource: '', tags: [] as string[],
   });
 
+  // ---- 人工打标：本地覆盖标签数据 ----
+  const [customTags, setCustomTags] = useState<Record<string, ProductTag[]>>({});
+
+  const getProductTags = (skuCode: string, defaultTags: ProductTag[]): ProductTag[] => {
+    return customTags[skuCode] ?? defaultTags;
+  };
+
+  const handleAddTag = (skuCode: string, tag: ProductTag, currentTags: ProductTag[]) => {
+    const current = customTags[skuCode] ?? currentTags;
+    const cleaned = current.filter((t) => t !== 'NONE');
+    if (cleaned.includes(tag)) { message.warning('该标签已存在'); return; }
+    setCustomTags((prev) => ({ ...prev, [skuCode]: [...cleaned, tag] }));
+    message.success('标签已添加');
+  };
+
+  const handleRemoveTag = (skuCode: string, tag: ProductTag, currentTags: ProductTag[]) => {
+    const current = customTags[skuCode] ?? currentTags;
+    const next = current.filter((t) => t !== tag);
+    setCustomTags((prev) => ({ ...prev, [skuCode]: next.length === 0 ? ['NONE' as ProductTag] : next }));
+    message.success('标签已移除');
+  };
+
   // ---- 各规则状态 ----
 
   // 自动上架规则
@@ -106,9 +128,12 @@ export default function ProductList() {
     if (filters.category) result = result.filter((p) => p.categoryPath.includes(filters.category));
     if (filters.statuses.length > 0) result = result.filter((p) => filters.statuses.includes(p.status));
     if (filters.baseSource) result = result.filter((p) => p.baseSource === filters.baseSource);
-    if (filters.tags.length > 0) result = result.filter((p) => p.tags.some((t) => filters.tags.includes(t)));
+    if (filters.tags.length > 0) result = result.filter((p) => {
+      const current = getProductTags(p.skuCode, p.tags);
+      return filters.tags.some((t) => current.includes(t));
+    });
     return result;
-  }, [filters]);
+  }, [filters, customTags]);
 
   const handleBatchAction = (action: string) => {
     if (selectedRowKeys.length === 0) { message.warning('请先选择商品'); return; }
@@ -130,7 +155,49 @@ export default function ProductList() {
       { title: '基地来源', dataIndex: 'baseSource', key: 'baseSource', width: 100, sorter: (a, b) => a.baseSource.localeCompare(b.baseSource) },
       { title: '适配车型数', dataIndex: 'vehicleModelCount', key: 'vehicleModelCount', width: 100, align: 'center', sorter: (a, b) => a.vehicleModelCount - b.vehicleModelCount },
       { title: '状态', dataIndex: 'status', key: 'status', width: 70, render: (s: ProductStatus) => { const info = PRODUCT_STATUS_MAP[s]; return <Tag color={info?.color}>{info?.label}</Tag>; } },
-      { title: '标签', dataIndex: 'tags', key: 'tags', width: 140, render: (tags: ProductTag[]) => tags.length === 0 || tags[0] === 'NONE' ? <Text type="secondary">-</Text> : <Space size={4}>{tags.map((t) => <Tag key={t} color={PRODUCT_TAG_MAP[t]?.color} style={{ fontSize: 11 }}>{PRODUCT_TAG_MAP[t]?.label}</Tag>)}</Space> },
+      { title: '标签', dataIndex: 'tags', key: 'tags', width: 200, render: (tags: ProductTag[], record: ProductDTO) => {
+        const displayTags = getProductTags(record.skuCode, tags);
+        const availableTags = (Object.keys(PRODUCT_TAG_MAP) as ProductTag[]).filter((t) => t !== 'NONE');
+        const addableTags = availableTags.filter((t) => !displayTags.includes(t));
+        return (
+          <Space size={4} wrap>
+            {displayTags.length === 0 || displayTags[0] === 'NONE' ? (
+              <Text type="secondary" style={{ fontSize: 12 }}>-</Text>
+            ) : (
+              displayTags.map((t) => (
+                <Popconfirm
+                  key={t}
+                  title={`确认移除标签「${PRODUCT_TAG_MAP[t]?.label}」？`}
+                  onConfirm={() => handleRemoveTag(record.skuCode, t, tags)}
+                  okText="确认" cancelText="取消"
+                >
+                  <Tag color={PRODUCT_TAG_MAP[t]?.color} style={{ cursor: 'pointer', fontSize: 11 }}
+                    onClick={(e) => e.stopPropagation()}>
+                    {PRODUCT_TAG_MAP[t]?.label} ✕
+                  </Tag>
+                </Popconfirm>
+              ))
+            )}
+            {addableTags.length > 0 && (
+              <Dropdown
+                menu={{
+                  items: addableTags.map((t) => ({
+                    key: t,
+                    label: <span style={{ color: PRODUCT_TAG_MAP[t]?.color }}>{PRODUCT_TAG_MAP[t]?.label}</span>,
+                    onClick: () => handleAddTag(record.skuCode, t, tags),
+                  })),
+                }}
+                trigger={['click']}
+              >
+                <Tag style={{ cursor: 'pointer', borderStyle: 'dashed', background: '#FFF', fontSize: 11 }}
+                  onClick={(e) => e.stopPropagation()}>
+                  + 打标
+                </Tag>
+              </Dropdown>
+            )}
+          </Space>
+        );
+      } },
       { title: '更新时间', dataIndex: 'updateTime', key: 'updateTime', width: 160, sorter: (a, b) => a.updateTime.localeCompare(b.updateTime), render: (t: string) => t.replace('T', ' ').substring(0, 16) },
       { title: '操作', key: 'actions', fixed: 'right' as const, width: 100, render: (_: unknown, record: ProductDTO) => (<a onClick={(e) => { e.stopPropagation(); navigate(`/products/${record.skuCode}/edit`); }} style={{ color: '#FF6B00' }}>编辑</a>) },
     ];
@@ -325,7 +392,7 @@ export default function ProductList() {
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Title level={4} style={{ margin: 0 }}>商品管理</Title>
         <Space>
-          <Button icon={<ReloadOutlined />} onClick={() => setFilters({ skuCode: '', skuName: '', category: '', statuses: [], baseSource: '' })}>重置</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => setFilters({ skuCode: '', skuName: '', category: '', statuses: [], baseSource: '', tags: [] })}>重置</Button>
           <Button icon={<UploadOutlined />}>批量导入</Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/products/new')}>新增商品</Button>
         </Space>

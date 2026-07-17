@@ -84,11 +84,9 @@ export default function ProductDetail() {
         </Col>
 
         <Col span={8}>
-          {/* 适配车架号 */}
-          <Card title="适配车架号(VIN)" size="small" style={{ marginBottom: 16 }}>
-            {product.compatibleVins.map((vin) => (
-              <Tag key={vin} color="purple" style={{ marginBottom: 6, fontFamily: 'monospace', fontSize: 12 }}>{vin}</Tag>
-            ))}
+          {/* 适配车型号 */}
+          <Card title="适配车型号" size="small" style={{ marginBottom: 16 }}>
+            <Text type="secondary" style={{ fontSize: 13 }}>暂无数据</Text>
           </Card>
 
           {/* 替代件 */}
