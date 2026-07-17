@@ -555,6 +555,43 @@ export interface SupplierETA {
   reason: 'SUPPLIER_PENDING' | 'IN_TRANSIT' | 'CUSTOMS' | 'PRODUCTION';
 }
 
+// ========== 拆分发货批次类型 ==========
+
+export type SupplierLogisticsStatus = 'PENDING' | 'SHIPPED' | 'ARRIVED_AT_BASE';
+
+export const SUPPLIER_STATUS_MAP: Record<SupplierLogisticsStatus, { label: string; color: string }> = {
+  PENDING: { label: '缺件，待供应商发货至基地', color: '#E11D48' },
+  SHIPPED: { label: '供应商已发货（在途至基地）', color: '#FF6B00' },
+  ARRIVED_AT_BASE: { label: '供应商已到货，基地待发', color: '#16A34A' },
+};
+
+export interface SplitShipmentBatch {
+  trackingNo: string;
+  label: string;
+  items: OrderItem[];
+  totalQty: number;
+  status: 'IN_TRANSIT' | 'DELIVERED' | 'PENDING';
+  shipTime: string;
+  estimatedArrival: string;
+  shippingMethod: 'WITH_VEHICLE' | 'STANDALONE';
+  logisticsCompany?: string;
+  /** 基地→经销商物流轨迹 */
+  trackingNodes?: TrackingNode[];
+  /** 供应商物流状态（拆分件2使用） */
+  supplierStatus?: SupplierLogisticsStatus;
+  supplierTrackingNo?: string;
+  supplierLogisticsCompany?: string;
+  supplierShipTime?: string;
+  supplierEstimatedArrival?: string;
+  /** 供应商→基地物流轨迹 */
+  supplierTrackingNodes?: TrackingNode[];
+}
+
+export interface SplitShipmentData {
+  primary: SplitShipmentBatch;
+  secondary: SplitShipmentBatch;
+}
+
 export interface SystemParam {
   paramKey: string;
   paramName: string;

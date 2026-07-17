@@ -1,7 +1,7 @@
 import type {
   OrderDTO, AppointmentDTO, ExceptionDTO, OperationLog,
   CustomOrderDTO, Call400DTO, TrackingDTO, TrackingNode, ProductDTO,
-  TrackStatus, InventoryShareDTO, ProductTag,
+  TrackStatus, InventoryShareDTO, ProductTag, SplitShipmentData, SupplierLogisticsStatus,
 } from '../types';
 
 // ========== 雅迪配件商品池 ==========
@@ -225,7 +225,7 @@ export function generateExceptions(orders: OrderDTO[]): ExceptionDTO[] {
     LOGISTICS_EXCEPTION: ['物流轨迹显示派送异常，收件地址无法找到', '运输途中包裹外包装严重破损，客户拒收', '物流信息超过48小时未更新'],
   };
 
-  const exceptionOrders = orders.filter((o) => o.status === 'EXCEPTION' || Math.random() > 0.7).slice(0, 10);
+  const exceptionOrders = orders.filter((o) => o.status === 'EXCEPTION').slice(0, 10);
   if (exceptionOrders.length === 0) return [];
 
   return exceptionOrders.map((order, i) => {
@@ -543,11 +543,43 @@ export function generateInventoryShares(): InventoryShareDTO[] {
 
 export const mockInventoryShares = generateInventoryShares();
 
-// ========== 拆分发货数据（有缺件的已发货订单） ==========
+// ========== 拆分发货数据（有缺件的订单） ==========
 
-export function getSplitShipmentData(orderNo: string) {
+/** 生成确定性物流轨迹节点（所有状态都有，PENDING 显示预估节点） */
+function generateBatchTrackingNodes(
+  trackingNo: string,
+  status: 'IN_TRANSIT' | 'DELIVERED' | 'PENDING',
+  shipTime: string,
+  logisticsCompany: string,
+  receiverCity: string,
+  receiverDistrict: string,
+  warehouseName: string,
+): TrackingNode[] {
+  const shipMs = new Date(shipTime).getTime();
+  if (status === 'PENDING') {
+    return [
+      { time: formatDate(new Date(shipMs)), location: warehouseName, description: `预计从${warehouseName}发货` },
+      { time: formatDate(new Date(shipMs + 24 * 3600000)), location: `${receiverCity}集散中心`, description: '预计到达目的地城市' },
+      { time: formatDate(new Date(shipMs + 30 * 3600000)), location: `${receiverCity}${receiverDistrict}`, description: '预计送达' },
+    ];
+  }
+  const nodes: TrackingNode[] = [
+    { time: formatDate(new Date(shipMs + 1 * 3600000)), location: warehouseName, description: `${logisticsCompany}已揽收` },
+    { time: formatDate(new Date(shipMs + 4 * 3600000)), location: warehouseName, description: '快件已离开仓库，发往分拣中心' },
+    { time: formatDate(new Date(shipMs + 12 * 3600000)), location: '华东分拣中心', description: '快件到达中转站' },
+    { time: formatDate(new Date(shipMs + 16 * 3600000)), location: '华东分拣中心', description: '快件已发往目的地' },
+    { time: formatDate(new Date(shipMs + 24 * 3600000)), location: `${receiverCity}集散中心`, description: '快件到达目的地城市' },
+    { time: formatDate(new Date(shipMs + 28 * 3600000)), location: `${receiverCity}${receiverDistrict}`, description: '快件派送中，快递员正在为您配送' },
+  ];
+  if (status === 'DELIVERED') {
+    nodes.push({ time: formatDate(new Date(shipMs + 30 * 3600000)), location: `${receiverCity}${receiverDistrict}`, description: '快件已签收' });
+  }
+  return nodes;
+}
+
+export function getSplitShipmentData(orderNo: string): SplitShipmentData | null {
   const order = mockOrders.find((o) => o.orderNo === orderNo);
-  if (!order || !order.shortageFlag || !['IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(order.status)) return null;
+  if (!order || !order.shortageFlag) return null;
   // 确定性判断：订单号长度偶数 = 拆分发货
   const isSplit = orderNo.replace(/[^0-9]/g, '').length % 2 === 0;
   if (!isSplit) return null;
@@ -560,24 +592,189 @@ export function getSplitShipmentData(orderNo: string) {
   const primaryTracking = `SF${String(Math.abs(orderNo.split('').reduce((s, c) => s + c.charCodeAt(0), 0))).padStart(12, '0')}`;
   const secondaryTracking = `SF${String(Math.abs(orderNo.split('').reduce((s, c) => s + c.charCodeAt(0) * 2, 0))).padStart(12, '0')}`;
 
+  const orderCreateMs = new Date(order.createTime).getTime();
+  const isShipped = ['IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(order.status);
+
+  const warehouseName = randomPick(['华东仓', '华南仓', '华北仓', '西南仓']);
+  const primaryLogisticsCompany = order.logisticsCompany || '顺丰速运';
+
+  // 拆分件1：有货件 — 基地→经销商
+  const primaryShipTime = isShipped ? order.createTime : formatDate(new Date(orderCreateMs + 2 * 24 * 3600000));
+  const primaryArrivalDays = order.shippingMethod === 'WITH_VEHICLE' ? 3 : 2;
+  const primaryEstArrival = formatDateShort(new Date(new Date(primaryShipTime).getTime() + primaryArrivalDays * 24 * 3600000));
+  const primaryStatus: 'IN_TRANSIT' | 'DELIVERED' | 'PENDING' =
+    order.status === 'DELIVERED' || order.status === 'COMPLETED' ? 'DELIVERED' :
+    order.status === 'IN_TRANSIT' ? 'IN_TRANSIT' : 'PENDING';
+
+  // 拆分件2：补缺件 — 供应商→基地→经销商
+  const charSum = orderNo.split('').reduce((s, c) => s + c.charCodeAt(0), 0);
+  const supplierStatus: SupplierLogisticsStatus = charSum % 3 === 0 ? 'ARRIVED_AT_BASE' : charSum % 3 === 1 ? 'SHIPPED' : 'PENDING';
+
+  // 供应商物流单号（确定性生成）
+  const supplierTrackingNo = supplierStatus !== 'PENDING' ? `YT${String(Math.abs(charSum * 3)).padStart(12, '0')}` : undefined;
+  const supplierCompany = supplierStatus !== 'PENDING' ? '圆通速递' : undefined;
+  const supplierShipTime = supplierStatus !== 'PENDING'
+    ? formatDate(new Date(orderCreateMs + (isShipped ? 1 : -2) * 24 * 3600000))
+    : undefined;
+
+  // 供应商预计到基地时间
+  let supplierEstArrival: string | undefined;
+  if (supplierStatus === 'PENDING') {
+    supplierEstArrival = formatDateShort(new Date(orderCreateMs + (isShipped ? 5 : 3) * 24 * 3600000));
+  } else if (supplierStatus === 'SHIPPED') {
+    supplierEstArrival = formatDateShort(new Date(orderCreateMs + (isShipped ? 3 : 1) * 24 * 3600000));
+  } else {
+    supplierEstArrival = formatDateShort(new Date(orderCreateMs + (isShipped ? 1 : -1) * 24 * 3600000));
+  }
+
+  // 基地发货预估：基于供应商到货时间 + 基地处理时间（1-2天）
+  const baseProcessingDays = 2;
+  const baseShipDate = new Date((supplierEstArrival ? new Date(supplierEstArrival).getTime() : orderCreateMs) + baseProcessingDays * 24 * 3600000);
+  const secondaryShipTime = formatDate(baseShipDate);
+  const secondaryArrivalDays = order.shippingMethod === 'WITH_VEHICLE' ? 3 : 2;
+  const secondaryEstArrival = formatDateShort(new Date(baseShipDate.getTime() + secondaryArrivalDays * 24 * 3600000));
+
+  // 拆分件2整体状态
+  let secondaryStatus: 'IN_TRANSIT' | 'DELIVERED' | 'PENDING';
+  if (order.status === 'DELIVERED' || order.status === 'COMPLETED') {
+    secondaryStatus = 'DELIVERED';
+  } else if (order.status === 'IN_TRANSIT') {
+    secondaryStatus = supplierStatus === 'ARRIVED_AT_BASE' ? 'IN_TRANSIT' : 'PENDING';
+  } else {
+    secondaryStatus = 'PENDING';
+  }
+
+  // 供应商物流轨迹
+  const supplierNodes: TrackingNode[] = [];
+  if (supplierStatus !== 'PENDING' && supplierShipTime && supplierTrackingNo) {
+    const sMs = new Date(supplierShipTime).getTime();
+    supplierNodes.push(
+      { time: formatDate(new Date(sMs + 1 * 3600000)), location: supplierCompany + ' 发货地', description: `${supplierCompany}已揽收` },
+      { time: formatDate(new Date(sMs + 8 * 3600000)), location: '在途中转', description: '快件在运输途中' },
+    );
+    if (supplierStatus === 'ARRIVED_AT_BASE') {
+      supplierNodes.push({ time: supplierEstArrival ? formatDate(new Date(new Date(supplierEstArrival).getTime())) : formatDate(new Date(sMs + 24 * 3600000)), location: warehouseName, description: '快件已到达基地仓库' });
+    }
+  }
+
+  const secondaryLogisticsCompany = order.logisticsCompany || '顺丰速运';
+
   return {
     primary: {
       trackingNo: primaryTracking,
-      label: '第一批（有货件）',
+      label: '拆分件1',
       items: availableItems,
       totalQty: availableItems.reduce((s, i) => s + i.quantity, 0),
-      status: order.status === 'DELIVERED' ? 'DELIVERED' as const : 'IN_TRANSIT' as const,
-      shipTime: order.createTime,
+      status: primaryStatus,
+      shipTime: primaryShipTime,
+      estimatedArrival: primaryEstArrival,
+      shippingMethod: order.shippingMethod,
+      logisticsCompany: primaryLogisticsCompany,
+      trackingNodes: generateBatchTrackingNodes(primaryTracking, primaryStatus, primaryShipTime, primaryLogisticsCompany, order.receiverCity, order.receiverDistrict, warehouseName),
     },
     secondary: {
       trackingNo: secondaryTracking,
-      label: '第二批（补缺件）',
+      label: '拆分件2',
       items: shortageItems,
       totalQty: shortageItems.reduce((s, i) => s + i.quantity, 0),
-      status: order.status === 'DELIVERED' ? 'DELIVERED' as const : order.status === 'IN_TRANSIT' ? 'IN_TRANSIT' as const : 'PENDING' as const,
-      shipTime: formatDate(new Date(new Date(order.createTime).getTime() + randomInt(24, 72) * 3600000)),
+      status: secondaryStatus,
+      shipTime: secondaryShipTime,
+      estimatedArrival: secondaryEstArrival,
+      shippingMethod: order.shippingMethod,
+      logisticsCompany: secondaryLogisticsCompany,
+      trackingNodes: generateBatchTrackingNodes(secondaryTracking, secondaryStatus, secondaryShipTime, secondaryLogisticsCompany, order.receiverCity, order.receiverDistrict, warehouseName),
+      supplierStatus,
+      supplierTrackingNo,
+      supplierLogisticsCompany: supplierCompany,
+      supplierShipTime,
+      supplierEstimatedArrival: supplierEstArrival,
+      supplierTrackingNodes: supplierNodes.length > 0 ? supplierNodes : undefined,
     },
   };
+}
+
+// ========== 统一包裹数据（所有订单按包裹维度，非拆分=1个，拆分=2个） ==========
+
+export function getOrderParcels(orderNo: string): SplitShipmentBatch[] {
+  const splitData = getSplitShipmentData(orderNo);
+  if (splitData) return [splitData.primary, splitData.secondary];
+
+  // 非拆分订单：构建单个包裹
+  const order = mockOrders.find((o) => o.orderNo === orderNo);
+  if (!order) return [];
+
+  const orderCreateMs = new Date(order.createTime).getTime();
+  const isShipped = ['IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(order.status);
+  const warehouseName = randomPick(['华东仓', '华南仓', '华北仓', '西南仓']);
+  const logisticsCompany = order.logisticsCompany || '顺丰速运';
+  const trackingNo = order.trackingNo || `SF${String(Math.abs(orderNo.split('').reduce((s, c) => s + c.charCodeAt(0), 0))).padStart(12, '0')}`;
+
+  const shipTime = isShipped ? order.createTime : formatDate(new Date(orderCreateMs + 3 * 24 * 3600000));
+  const arrivalDays = order.shippingMethod === 'WITH_VEHICLE' ? 3 : 2;
+  const estArrival = formatDateShort(new Date(new Date(shipTime).getTime() + arrivalDays * 24 * 3600000));
+
+  const parcelStatus: 'IN_TRANSIT' | 'DELIVERED' | 'PENDING' =
+    order.status === 'DELIVERED' || order.status === 'COMPLETED' ? 'DELIVERED' :
+    order.status === 'IN_TRANSIT' ? 'IN_TRANSIT' : 'PENDING';
+
+  // 缺件信息（如果有）
+  const shortageItems = order.items.filter((it) => it.shortageQty > 0);
+  const hasShortage = shortageItems.length > 0;
+
+  let supplierStatus: SupplierLogisticsStatus | undefined;
+  let supplierTrackingNo: string | undefined;
+  let supplierLogisticsCompany: string | undefined;
+  let supplierShipTime: string | undefined;
+  let supplierEstimatedArrival: string | undefined;
+  let supplierTrackingNodes: TrackingNode[] | undefined;
+
+  if (hasShortage) {
+    const charSum = orderNo.split('').reduce((s, c) => s + c.charCodeAt(0), 0);
+    supplierStatus = charSum % 3 === 0 ? 'ARRIVED_AT_BASE' : charSum % 3 === 1 ? 'SHIPPED' : 'PENDING';
+    supplierLogisticsCompany = supplierStatus !== 'PENDING' ? '圆通速递' : undefined;
+    supplierTrackingNo = supplierStatus !== 'PENDING' ? `YT${String(Math.abs(charSum * 3)).padStart(12, '0')}` : undefined;
+    supplierShipTime = supplierStatus !== 'PENDING'
+      ? formatDate(new Date(orderCreateMs + (isShipped ? 1 : -2) * 24 * 3600000))
+      : undefined;
+
+    if (supplierStatus === 'PENDING') {
+      supplierEstimatedArrival = formatDateShort(new Date(orderCreateMs + 3 * 24 * 3600000));
+    } else if (supplierStatus === 'SHIPPED') {
+      supplierEstimatedArrival = formatDateShort(new Date(orderCreateMs + 1 * 24 * 3600000));
+    } else {
+      supplierEstimatedArrival = formatDateShort(new Date(orderCreateMs - 1 * 24 * 3600000));
+    }
+
+    if (supplierStatus !== 'PENDING' && supplierShipTime) {
+      const sMs = new Date(supplierShipTime).getTime();
+      supplierTrackingNodes = [
+        { time: formatDate(new Date(sMs + 1 * 3600000)), location: '供应商发货地', description: `${supplierLogisticsCompany}已揽收` },
+        { time: formatDate(new Date(sMs + 8 * 3600000)), location: '在途中转', description: '快件在运输途中' },
+      ];
+      if (supplierStatus === 'ARRIVED_AT_BASE') {
+        supplierTrackingNodes.push({ time: formatDate(new Date(new Date(supplierEstimatedArrival!).getTime())), location: warehouseName, description: '快件已到达基地仓库' });
+      }
+    }
+  }
+
+  return [{
+    trackingNo,
+    label: '包裹',
+    items: order.items,
+    totalQty: order.items.reduce((s, i) => s + i.quantity, 0),
+    status: parcelStatus,
+    shipTime,
+    estimatedArrival: estArrival,
+    shippingMethod: order.shippingMethod,
+    logisticsCompany,
+    trackingNodes: generateBatchTrackingNodes(trackingNo, parcelStatus, shipTime, logisticsCompany, order.receiverCity, order.receiverDistrict, warehouseName),
+    supplierStatus,
+    supplierTrackingNo,
+    supplierLogisticsCompany,
+    supplierShipTime,
+    supplierEstimatedArrival,
+    supplierTrackingNodes,
+  }];
 }
 
 // ========== 仪表盘统计数据 ==========
