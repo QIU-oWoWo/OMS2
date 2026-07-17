@@ -308,7 +308,7 @@ export function generateOrders(): OrderDTO[] {
     const dealer = randomPick(DEALERS);
     const targetStatus = statusDistribution[i % statusDistribution.length];
     const itemsCount = randomInt(1, 5);
-    const bizType = (['REGULAR', 'APPOINTMENT', 'CUSTOM', 'REQUISITION'] as const)[i % 4];
+    const bizType = (['REGULAR', 'APPOINTMENT', 'CUSTOM', 'CALL_400', 'REQUISITION'] as const)[i % 5];
     const shippingMethod = (i % 3 === 0) ? 'WITH_VEHICLE' as const : 'STANDALONE' as const;
     const createDate = new Date(2026, 6, randomInt(1, 16), randomInt(8, 18), randomInt(0, 59), randomInt(0, 59));
     const orderNo = `OMS${String(20260716 - randomInt(0, 999)).padStart(6, '0')}${String(i + 1).padStart(4, '0')}`;
@@ -444,9 +444,12 @@ export function generateOrders(): OrderDTO[] {
     });
 
     // 最终聚合推导（验证一致性）
+    // PENDING_REVIEW 的包裹也是 PENDING，deriveOrderStatus 会误推导为 SCHEDULING，
+    // 因此 PENDING_REVIEW 直接保留，不参与包裹状态推导
     const derivedStatus = isTerminal ? targetStatus :
       targetStatus === 'EXCEPTION_HOLD' ? 'EXCEPTION_HOLD' :
       targetStatus === 'RETURN_PROCESSING' ? 'RETURN_PROCESSING' :
+      targetStatus === 'PENDING_REVIEW' ? 'PENDING_REVIEW' :
       deriveOrderStatus(packages, shortagePolicy);
 
     const totalAmount = rawItems.reduce((sum, item) => sum + item.subtotal, 0);
@@ -494,9 +497,12 @@ export function generateOrders(): OrderDTO[] {
 
 export function generateAppointments(orders: OrderDTO[]): AppointmentDTO[] {
   const statuses = ['PENDING_CONFIRM', 'CONFIRMED', 'EXPIRED', 'CANCELLED', 'EXECUTED'] as const;
+  // 优先使用 APPOINTMENT 类型的订单，确保与订单详情页的 bizType 匹配
+  const matched = orders.filter((o) => o.bizType === 'APPOINTMENT');
+  const pool = matched.length >= 8 ? matched.slice(0, 8) : [...matched, ...orders.filter((o) => o.bizType !== 'APPOINTMENT')];
 
   return Array.from({ length: 8 }, (_, i) => {
-    const order = orders[i * 3 + 1] || randomPick(orders);
+    const order = pool[i] || randomPick(orders);
     const appointDate = new Date(2026, 6, randomInt(17, 31));
     const createDate = new Date(2026, 6, randomInt(1, 15), randomInt(8, 18));
 
@@ -596,9 +602,12 @@ export function generateCustomOrders(orders: OrderDTO[]): CustomOrderDTO[] {
     '48V→72V电压升级套件（电机+控制器+电池仓）',
     '定制LED矩阵大灯模组（含日行灯功能）',
   ];
+  // 优先使用 CUSTOM 类型的订单，确保与订单详情页的 bizType 匹配
+  const matched = orders.filter((o) => o.bizType === 'CUSTOM');
+  const pool = matched.length >= 8 ? matched.slice(0, 8) : [...matched, ...orders.filter((o) => o.bizType !== 'CUSTOM')];
 
   return Array.from({ length: 8 }, (_, i) => {
-    const order = orders[i * 2 + 2] || randomPick(orders);
+    const order = pool[i] || randomPick(orders);
     const materialCost = randomInt(200, 3000);
     const laborCost = randomInt(100, 800);
     const markupRate = 1 + randomInt(10, 35) / 100;
@@ -617,7 +626,7 @@ export function generateCustomOrders(orders: OrderDTO[]): CustomOrderDTO[] {
       approvalStatus: statuses[i % statuses.length],
       quoteAmount: Math.round((materialCost + laborCost) * markupRate * 100) / 100,
       attachments: i % 3 === 0 ? ['drawing_v2.pdf', 'spec_sheet.xlsx'] : [],
-      vinCode: order.vinCode,
+      vinCode: order.vinCodes?.[0] || '',
       materialCost,
       laborCost,
       markupRate: Math.round((markupRate - 1) * 100),
@@ -640,9 +649,12 @@ export function generateCall400Orders(orders: OrderDTO[]): Call400DTO[] {
     { skuCode: 'YD-MR-001', skuName: '后视镜总成' },
     { skuCode: 'YD-CG-001', skuName: '充电器' },
   ];
+  // 优先使用 CALL_400 类型的订单，确保与订单详情页的 bizType 匹配
+  const matched = orders.filter((o) => o.bizType === 'CALL_400');
+  const pool = matched.length >= 8 ? matched.slice(0, 8) : [...matched, ...orders.filter((o) => o.bizType !== 'CALL_400')];
 
   return Array.from({ length: 8 }, (_, i) => {
-    const order = orders[i * 3 + 1] || randomPick(orders);
+    const order = pool[i] || randomPick(orders);
     const createDate = new Date(2026, 6, randomInt(10, 16), randomInt(8, 18));
 
     return {
@@ -1456,38 +1468,145 @@ mockOrders.filter((o) => ['PENDING_REVIEW', 'SCHEDULING', 'PICKING', 'READY_TO_S
   }
 });
 
-// ========== 按订单生成操作日志 ==========
+// ========== 按订单生成操作日志（与订单状态强关联） ==========
+
+/**
+ * 状态排序表：数值越大越靠后，用于判断"该状态应包含哪些历史操作"
+ */
+const STATUS_ORDER: Record<string, number> = {
+  PENDING_REVIEW: 0,
+  SCHEDULING: 1,
+  PICKING: 2,
+  READY_TO_SHIP: 3,
+  PARTIALLY_SHIPPED: 4,
+  IN_TRANSIT: 5,
+  DELIVERED: 6,
+  COMPLETED: 7,
+};
 
 export function getOperationLogs(order: typeof mockOrders[number]) {
-  const baseActions: { action: string; remark?: string }[] = [];
-  const steps = ['PENDING_REVIEW', 'SCHEDULING', 'PICKING', 'READY_TO_SHIP', 'PARTIALLY_SHIPPED', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'];
-  const stepLabels = ['创建订单', '审核通过', '拣货完成', '确认发货', '部分包裹已发货', '物流揽收', '客户签收', '订单归档'];
-  const currentIdx = steps.indexOf(order.status);
+  const actions: { action: string; remark?: string }[] = [];
+  const level = STATUS_ORDER[order.status] ?? -1;
 
-  baseActions.push({ action: '创建订单', remark: `经销商 ${order.dealerName} 提交订单` });
+  // 1. 创建订单（所有订单都有）
+  actions.push({ action: '创建订单', remark: `经销商 ${order.dealerName} 提交订单，共 ${order.items.reduce((s, i) => s + i.quantity, 0)} 件商品` });
 
-  const isTerminal = ['ORDER_TERMINATED', 'CANCELLED'].includes(order.status);
-  const isException = order.status === 'EXCEPTION_HOLD' || order.status === 'EXCEPTION';
-
-  if (isTerminal) {
-    baseActions.push({ action: '审核不通过', remark: order.status === 'CANCELLED' ? '经销商主动取消订单' : '订单审核未通过，已终止' });
-  } else if (isException) {
-    baseActions.push({ action: '审核通过', remark: '订单进入履约流程' });
-    baseActions.push({ action: '拣货完成' });
-    baseActions.push({ action: '标记异常', remark: '物流丢件，所有包裹异常，订单挂起' });
-  } else {
-    const ops = OPERATORS;
-    for (let i = 1; i <= Math.min(currentIdx, stepLabels.length - 1) + 1; i++) {
-      if (i >= 1) {
-        baseActions.push({ action: stepLabels[Math.min(i, stepLabels.length - 1)] });
-      }
-    }
+  // 2. 终止 / 取消
+  if (order.status === 'ORDER_TERMINATED') {
+    actions.push({ action: '审核不通过', remark: '订单审核未通过，订单已终止' });
+    return buildLogs(order, actions);
+  }
+  if (order.status === 'CANCELLED') {
+    actions.push({ action: '取消订单', remark: '经销商主动取消订单' });
+    return buildLogs(order, actions);
   }
 
-  return baseActions.map((a, i) => {
+  // 3. 异常挂起
+  if (order.status === 'EXCEPTION_HOLD') {
+    actions.push({ action: '审核通过', remark: '订单进入履约流程' });
+    actions.push({ action: '排单完成', remark: `分配至 ${order.baseSource}` });
+    actions.push({ action: '拣货完成' });
+    actions.push({ action: '标记异常', remark: '物流异常，订单挂起待处理' });
+    return buildLogs(order, actions);
+  }
+
+  // 4. 退货处理中
+  if (order.status === 'RETURN_PROCESSING') {
+    actions.push({ action: '审核通过', remark: '订单进入履约流程' });
+    actions.push({ action: '排单完成', remark: `分配至 ${order.baseSource}` });
+    actions.push({ action: '拣货完成' });
+    actions.push({ action: '确认发货' });
+    actions.push({ action: '物流揽收' });
+    actions.push({ action: '客户签收' });
+    actions.push({ action: '退货申请', remark: '客户发起退货，退货处理中' });
+    return buildLogs(order, actions);
+  }
+
+  // 5. 旧状态兼容
+  if (order.status === 'EXCEPTION') {
+    actions.push({ action: '审核通过', remark: '订单进入履约流程' });
+    actions.push({ action: '标记异常', remark: '系统检测异常' });
+    return buildLogs(order, actions);
+  }
+
+  // 6. 正常履约流程（按 level 递增添加操作）
+  if (level >= 0) {
+    // level >= 0: PENDING_REVIEW — 订单在审核中，尚无后续操作
+  }
+  if (level >= 1) {
+    // SCHEDULING 及以上
+    actions.push({ action: '审核通过', remark: '订单审核通过，进入排单阶段' });
+    if (order.shortagePolicy === 'SPLIT') {
+      actions.push({ action: '排单完成', remark: `缺件策略：拆分发货 · 分配至 ${order.baseSource}` });
+    } else {
+      actions.push({ action: '排单完成', remark: `整单发出 · 分配至 ${order.baseSource}` });
+    }
+  }
+  if (level >= 2) {
+    // PICKING 及以上
+    const pkgs = order.packages || [];
+    if (pkgs.length > 1) {
+      actions.push({ action: '开始拣货', remark: `拆分 ${pkgs.length} 个包裹分别拣货` });
+    } else {
+      actions.push({ action: '开始拣货' });
+    }
+    const shortagePkgs = pkgs.filter((p) => p.lineItems.some((li) => li.stockStatus !== 'IN_STOCK'));
+    if (shortagePkgs.length > 0) {
+      actions.push({ action: '拣货完成', remark: `有货包裹已备齐，${shortagePkgs.length} 个缺件包裹待补货` });
+    } else {
+      actions.push({ action: '拣货完成', remark: '所有包裹已备齐' });
+    }
+  }
+  if (level >= 3) {
+    // READY_TO_SHIP 及以上
+    const shippedPkgs = (order.packages || []).filter((p) => ['SHIPPED', 'DELIVERED', 'COMPLETED'].includes(p.status));
+    if (shippedPkgs.length > 0) {
+      actions.push({ action: '确认发货', remark: `${shippedPkgs.length} 个包裹已出库` });
+    } else {
+      actions.push({ action: '待发货', remark: '包裹已备齐，等待发货' });
+    }
+  }
+  if (level >= 4) {
+    // PARTIALLY_SHIPPED 及以上
+    const pkgs2 = order.packages || [];
+    const shipped = pkgs2.filter((p) => ['SHIPPED', 'DELIVERED', 'COMPLETED'].includes(p.status));
+    const waiting = pkgs2.filter((p) => !['SHIPPED', 'DELIVERED', 'COMPLETED'].includes(p.status));
+    if (waiting.length > 0) {
+      actions.push({ action: '部分包裹已发货', remark: `${shipped.length}/${pkgs2.length} 包裹已发出，${waiting.length} 包裹待补货后发出` });
+    }
+  }
+  if (level >= 5) {
+    // IN_TRANSIT 及以上
+    const inTransit = (order.packages || []).filter((p) => p.status === 'SHIPPED');
+    if (inTransit.length > 0 && inTransit[0].logisticsCompany) {
+      actions.push({ action: '物流揽收', remark: `${inTransit[0].logisticsCompany} 已揽收 · 运单 ${inTransit[0].trackingNo || '-'}` });
+    } else {
+      actions.push({ action: '物流揽收', remark: '快递已揽收，运输中' });
+    }
+  }
+  if (level >= 6) {
+    // DELIVERED 及以上
+    const deliveredPkgs = (order.packages || []).filter((p) => ['DELIVERED', 'COMPLETED'].includes(p.status));
+    if (deliveredPkgs.length > 0) {
+      actions.push({ action: '客户签收', remark: `${deliveredPkgs.length} 个包裹已签收 · 签收人: ${order.receiverName}` });
+    } else {
+      actions.push({ action: '客户签收', remark: `签收人: ${order.receiverName}` });
+    }
+  }
+  if (level >= 7) {
+    // COMPLETED
+    actions.push({ action: '订单归档', remark: '订单已完成，自动归档' });
+  }
+
+  return buildLogs(order, actions);
+}
+
+/** 将 action 列表转为带时间戳和操作人的完整日志 */
+function buildLogs(order: typeof mockOrders[number], actions: { action: string; remark?: string }[]) {
+  const baseTime = new Date(order.createTime);
+  return actions.map((a, i) => {
     const op = OPERATORS[(i + order.orderNo.length) % OPERATORS.length];
-    const baseTime = new Date(order.createTime);
-    const logDate = new Date(baseTime.getTime() + i * randomInt(2, 8) * 3600000);
+    const logDate = new Date(baseTime.getTime() + i * randomInt(1, 4) * 3600000);
     return { time: formatDate(logDate), operator: op.name, role: op.role, action: a.action, remark: a.remark };
   }).sort((a, b) => b.time.localeCompare(a.time));
 }

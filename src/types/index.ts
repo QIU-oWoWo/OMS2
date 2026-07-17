@@ -300,8 +300,8 @@ export const ORDER_FLOW_NODES: OrderFlowNode[] = [
  * 人工修改入口：与 ORDER_FLOW_NODES 同步维护。
  */
 export const STATUS_TO_FLOW_NODE: Record<OrderStatus, number> = {
-  PENDING_REVIEW: 0,
-  SCHEDULING: 1,
+  PENDING_REVIEW: 1,
+  SCHEDULING: 2,
   PICKING: 3,
   READY_TO_SHIP: 4,
   PARTIALLY_SHIPPED: 5,

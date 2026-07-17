@@ -6,10 +6,6 @@ import MainLayout from './layouts/MainLayout';
 import Dashboard from './pages/Dashboard';
 import OrderList from './pages/orders/OrderList';
 import OrderDetail from './pages/orders/OrderDetail';
-import AppointmentList from './pages/orders/AppointmentList';
-import CustomOrderList from './pages/orders/CustomOrderList';
-import CustomOrderDetail from './pages/orders/CustomOrderDetail';
-import Call400List from './pages/orders/Call400List';
 import VehicleShipping from './pages/orders/VehicleShipping';
 import InvoiceList from './pages/orders/InvoiceList';
 import ExceptionList from './pages/exceptions/ExceptionList';
@@ -38,10 +34,6 @@ function App() {
               {/* 订单管理 */}
               <Route path="/orders" element={<OrderList />} />
               <Route path="/orders/:orderNo" element={<OrderDetail />} />
-              <Route path="/orders/appointments" element={<AppointmentList />} />
-              <Route path="/orders/custom" element={<CustomOrderList />} />
-              <Route path="/orders/custom/:customNo" element={<CustomOrderDetail />} />
-              <Route path="/orders/call400" element={<Call400List />} />
               <Route path="/orders/vehicle-shipping" element={<VehicleShipping />} />
               <Route path="/orders/invoices" element={<InvoiceList />} />
               {/* 异常中心 */}

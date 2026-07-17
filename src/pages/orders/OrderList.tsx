@@ -42,7 +42,7 @@ const STATUS_TABS: { key: OrderStatus | 'ALL'; label: string }[] = [
 
 const ALL_COLUMNS = [
   { key: 'orderNo', title: '订单号', fixed: true }, { key: 'dealerName', title: '经销商' },
-  { key: 'bizType', title: '业务流程' }, { key: 'urgencyLevel', title: '时效等级' },
+  { key: 'bizType', title: '订单类型' }, { key: 'urgencyLevel', title: '时效等级' },
   { key: 'fulfillMethod', title: '履约方式' }, { key: 'skuCount', title: 'SKU数量' },
   { key: 'totalAmount', title: '总金额' }, { key: 'createTime', title: '下单时间' },
   { key: 'status', title: '当前状态' }, { key: 'vinCode', title: 'VIN码' },
@@ -164,7 +164,7 @@ export default function OrderList() {
     const all: ColumnsType<OrderDTO> = [
       { title: '订单号', dataIndex: 'orderNo', key: 'orderNo', fixed: 'left' as const, width: 180, sorter: (a, b) => a.orderNo.localeCompare(b.orderNo), render: (no: string) => (<a onClick={(e) => { e.stopPropagation(); navigate(`/orders/${no}`); }} style={{ color: '#FF6B00', fontWeight: 500 }}>{no}</a>) },
       { title: '经销商', dataIndex: 'dealerName', key: 'dealerName', width: 160, sorter: (a, b) => a.dealerName.localeCompare(b.dealerName) },
-      { title: '业务流程', dataIndex: 'bizType', key: 'bizType', width: 90, render: (type: string) => { const colors: Record<string, string> = { REGULAR: '#16A34A', APPOINTMENT: '#0284C7', CUSTOM: '#7C3AED', REQUISITION: '#8C8C8C' }; return <Tag color={colors[type]}>{BIZ_TYPE_MAP[type as keyof typeof BIZ_TYPE_MAP]}</Tag>; } },
+      { title: '订单类型', dataIndex: 'bizType', key: 'bizType', width: 90, render: (type: string) => { const colors: Record<string, string> = { REGULAR: '#16A34A', APPOINTMENT: '#0284C7', CUSTOM: '#7C3AED', CALL_400: '#16A34A', REQUISITION: '#8C8C8C' }; return <Tag color={colors[type] || '#8C8C8C'}>{BIZ_TYPE_MAP[type as keyof typeof BIZ_TYPE_MAP]}</Tag>; } },
       { title: '时效等级', dataIndex: 'urgencyLevel', key: 'urgencyLevel', width: 90, render: (level: string) => { const info = URGENCY_MAP[level as keyof typeof URGENCY_MAP]; return <Tag color={info?.color}>{info?.label}</Tag>; } },
       { title: '履约方式', dataIndex: 'fulfillMethod', key: 'fulfillMethod', width: 90, render: (m: string) => FULFILL_METHOD_MAP[m as keyof typeof FULFILL_METHOD_MAP] },
       { title: 'SKU数量', dataIndex: 'skuCount', key: 'skuCount', width: 90, align: 'center' as const, sorter: (a, b) => a.skuCount - b.skuCount },
@@ -304,7 +304,7 @@ export default function OrderList() {
             <Col span={4}><Input placeholder="订单号搜索" prefix={<SearchOutlined />} value={filters.orderNo} onChange={(e) => setFilters((f) => ({ ...f, orderNo: e.target.value }))} allowClear /></Col>
             <Col span={4}><Input placeholder="经销商搜索" value={filters.dealerName} onChange={(e) => setFilters((f) => ({ ...f, dealerName: e.target.value }))} allowClear /></Col>
             <Col span={5}><RangePicker style={{ width: '100%' }} placeholder={['开始日期', '结束日期']} value={filters.dateRange} onChange={(dates) => setFilters((f) => ({ ...f, dateRange: dates as [dayjs.Dayjs, dayjs.Dayjs] | null }))} /></Col>
-            <Col span={4}><Select mode="multiple" placeholder="业务流程" style={{ width: '100%' }} value={filters.bizTypes} onChange={(vals) => setFilters((f) => ({ ...f, bizTypes: vals }))} options={Object.entries(BIZ_TYPE_MAP).map(([k, v]) => ({ value: k, label: v }))} maxTagCount={1} /></Col>
+            <Col span={4}><Select mode="multiple" placeholder="订单类型" style={{ width: '100%' }} value={filters.bizTypes} onChange={(vals) => setFilters((f) => ({ ...f, bizTypes: vals }))} options={Object.entries(BIZ_TYPE_MAP).map(([k, v]) => ({ value: k, label: v }))} maxTagCount={1} /></Col>
             <Col span={3}><Select mode="multiple" placeholder="时效等级" style={{ width: '100%' }} value={filters.urgencyLevels} onChange={(vals) => setFilters((f) => ({ ...f, urgencyLevels: vals }))} options={[{ value: 'CRITICAL', label: '特急' }, { value: 'URGENT', label: '紧急' }, { value: 'NORMAL', label: '普通' }]} maxTagCount={1} /></Col>
             <Col span={2}><Space><span style={{ fontSize: 13, color: '#595959' }}>仅缺件</span><Switch size="small" checked={filters.shortageOnly} onChange={(v) => setFilters((f) => ({ ...f, shortageOnly: v }))} /></Space></Col>
             <Col span={2}><Button onClick={() => setShowFilters(false)} icon={<FilterOutlined />}>收起</Button></Col>
