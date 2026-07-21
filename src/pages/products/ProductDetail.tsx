@@ -89,27 +89,15 @@ export default function ProductDetail() {
             <Text type="secondary" style={{ fontSize: 13 }}>暂无数据</Text>
           </Card>
 
-          {/* 替代件 */}
-          {product.substituteSkuCodes.length > 0 && (
-            <Card title="替代件关系" size="small" style={{ marginBottom: 16 }}>
-              {product.substituteSkuCodes.map((code) => {
-                const sub = mockProducts.find((p) => p.skuCode === code);
-                return (
-                  <Tag key={code} color="blue" style={{ cursor: 'pointer', marginBottom: 6 }}
-                    onClick={() => navigate(`/products/${code}`)}>
-                    {code} {sub ? `(${sub.skuName.substring(0, 10)}...)` : ''}
-                  </Tag>
-                );
-              })}
-            </Card>
-          )}
+          {/* 替代件关系 */}
+          <Card title="替代件关系" size="small" style={{ marginBottom: 16 }}>
+            <Text type="secondary" style={{ fontSize: 13 }}>暂无数据</Text>
+          </Card>
 
-          {/* 合格证 */}
-          {product.certificateTemplateId && (
-            <Card title="合格证模板" size="small" style={{ marginBottom: 16 }}>
-              <Tag color="green">{product.certificateTemplateId}</Tag>
-            </Card>
-          )}
+          {/* 合格证模板 */}
+          <Card title="合格证模板" size="small" style={{ marginBottom: 16 }}>
+            <Text type="secondary" style={{ fontSize: 13 }}>暂无数据</Text>
+          </Card>
         </Col>
       </Row>
     </div>

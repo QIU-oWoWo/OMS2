@@ -1,8 +1,9 @@
 // ========== 订单相关类型 ==========
 
-export type BizType = 'REGULAR' | 'APPOINTMENT' | 'CUSTOM' | 'CALL_400' | 'REQUISITION';
-export type UrgencyLevel = 'NORMAL' | 'URGENT' | 'CRITICAL';
-export type FulfillMethod = 'DIRECT_SHIP' | 'WAREHOUSE_SHIP';
+export type BizType = 'DIRECT' | 'CUSTOM' | 'RESERVE' | 'REGULAR';
+export type OrderSource = 'CALL_400' | 'REQUISITION' | 'YUN_XIAO_TONG';
+export type UrgencyLevel = 'NORMAL' | 'URGENT';
+export type FulfillMethod = 'DIRECT_SHIP' | 'WAREHOUSE_SHIP'; // 已废弃，保留类型兼容
 export type OrderStatus =
   // 审核阶段
   | 'PENDING_REVIEW'
@@ -43,6 +44,8 @@ export interface SupplierInfo {
   supplierName: string;
   expectedArrivalDate: string;
   trackingNumber?: string;
+  supplierStatus?: SupplierLogisticsStatus;
+  shipTime?: string;
 }
 
 /** 行项（扩展 OrderItem，增加库存状态和供应商信息） */
@@ -79,8 +82,8 @@ export interface OrderDTO {
   dealerId: string;
   dealerName: string;
   bizType: BizType;
+  orderSource: OrderSource;
   urgencyLevel: UrgencyLevel;
-  fulfillMethod: FulfillMethod;
   status: OrderStatus;
   vinCodes: string[];
   baseSource: string;
@@ -206,20 +209,24 @@ export const PACKAGE_STATUS_MAP: Record<PackageStatus, string> = {
 
 export const STOCK_STATUS_MAP: Record<StockStatus, { label: string; color: string }> = {
   IN_STOCK: { label: '有货', color: STATUS_COLORS.success },
-  OUT_OF_STOCK: { label: '缺货', color: STATUS_COLORS.error },
-  PURCHASING: { label: '采购中', color: STATUS_COLORS.warning },
+  OUT_OF_STOCK: { label: '待补货', color: STATUS_COLORS.error },
+  PURCHASING: { label: '待补货', color: STATUS_COLORS.error },
 };
 
 export const BIZ_TYPE_MAP: Record<BizType, string> = {
-  REGULAR: '常规',
-  APPOINTMENT: '预约',
+  DIRECT: '直发',
   CUSTOM: '定制',
+  RESERVE: '预定',
+  REGULAR: '常规',
+};
+
+export const ORDER_SOURCE_MAP: Record<OrderSource, string> = {
   CALL_400: '400',
   REQUISITION: '领用',
+  YUN_XIAO_TONG: '云销通',
 };
 
 export const URGENCY_MAP: Record<UrgencyLevel, { label: string; color: string }> = {
-  CRITICAL: { label: '特急', color: '#E11D48' },
   URGENT: { label: '紧急', color: '#FF6B00' },
   NORMAL: { label: '普通', color: '#8C8C8C' },
 };

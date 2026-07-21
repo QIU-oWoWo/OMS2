@@ -4,10 +4,94 @@ import { Card, Descriptions, Table, Tag, Space, Button, Typography, Row, Col, Br
 import { ArrowLeftOutlined, CarOutlined, InboxOutlined, ExclamationCircleOutlined, TruckOutlined, SplitCellsOutlined, DownOutlined, UpOutlined, ShoppingCartOutlined, SendOutlined, CheckCircleFilled, CalendarOutlined, CheckCircleOutlined, CloseCircleOutlined, PaperClipOutlined, FileProtectOutlined, AppstoreOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { mockOrders, mockDeliveryNotes, getOperationLogs, mockExceptions, getSplitShipmentData, getOrderParcels, mockAppointments, mockCustomOrders, mockCall400Orders } from '../../data/mockData';
-import { ORDER_STATUS_MAP, ORDER_STATUS_COLOR_MAP, BIZ_TYPE_MAP, URGENCY_MAP, FULFILL_METHOD_MAP, EXCEPTION_TYPE_MAP, EXCEPTION_STATUS_MAP, SUPPLIER_STATUS_MAP, STOCK_STATUS_MAP, PACKAGE_STATUS_MAP, STATUS_COLORS, ORDER_FLOW_NODES, STATUS_TO_FLOW_NODE, APPOINT_STATUS_MAP, CUSTOM_TYPE_MAP, CUSTOM_APPROVAL_MAP, APPLY_REASON_MAP, FREE_TYPE_MAP, CALL400_APPROVAL_MAP } from '../../types';
+import { ORDER_STATUS_MAP, ORDER_STATUS_COLOR_MAP, BIZ_TYPE_MAP, ORDER_SOURCE_MAP, URGENCY_MAP, EXCEPTION_TYPE_MAP, EXCEPTION_STATUS_MAP, SUPPLIER_STATUS_MAP, STOCK_STATUS_MAP, PACKAGE_STATUS_MAP, STATUS_COLORS, ORDER_FLOW_NODES, STATUS_TO_FLOW_NODE, APPOINT_STATUS_MAP, CUSTOM_TYPE_MAP, CUSTOM_APPROVAL_MAP, APPLY_REASON_MAP, FREE_TYPE_MAP, CALL400_APPROVAL_MAP } from '../../types';
 import type { LineItem, AppointmentDTO, CustomOrderDTO, Call400DTO, AppointStatus, CustomApprovalStatus, OrderStatus } from '../../types';
 
 const { Title, Text } = Typography;
+
+// ========== 包裹状态颜色工具 ==========
+
+function getPkgTagColor(status: string) {
+  if (status === 'DELIVERED' || status === 'COMPLETED') return 'success';
+  if (status === 'SHIPPED') return 'processing';
+  if (status === 'WAITING_RESTOCK') return 'warning';
+  return 'default';
+}
+
+// ========== 单个包裹卡片 ==========
+
+function PkgCard({ pkg, idx, isDirect, isLast }: { pkg: any; idx: number; isDirect: boolean; isLast: boolean }) {
+  const [open, setOpen] = useState(false);
+  const isDelivered = ['DELIVERED', 'COMPLETED'].includes(pkg.status);
+  const hasTracking = !!(pkg.trackingNo);
+  const lastNode = hasTracking && pkg.trackingNodes?.length > 0 ? pkg.trackingNodes[pkg.trackingNodes.length - 1] : null;
+  const pkgColor = isDelivered ? STATUS_COLORS.success : pkg.status === 'SHIPPED' ? STATUS_COLORS.normal : pkg.status === 'WAITING_RESTOCK' ? STATUS_COLORS.warning : STATUS_COLORS.neutral;
+
+  return (
+    <div style={{ marginBottom: isLast ? 0 : 10, border: `1px solid ${isDelivered ? STATUS_COLORS.success : pkgColor}30`, borderRadius: 6, overflow: 'hidden' }}>
+      <div onClick={() => setOpen(!open)} style={{ cursor: 'pointer', padding: '10px 14px', background: `${pkgColor}08`, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <Tag color={pkg.packageType === 'SUPPLEMENT' ? 'orange' : 'blue'} style={{ margin: 0 }}>包裹{idx + 1}</Tag>
+        <Tag color={getPkgTagColor(pkg.status)} style={{ margin: 0 }}>{PACKAGE_STATUS_MAP[pkg.status]}</Tag>
+        <span style={{ color: '#D9D9D9', margin: '0 4px' }}>|</span>
+        <Text style={{ fontSize: 13 }}><Text type="secondary">{isDelivered ? '发货: ' : '预计发货: '}</Text><Text strong>{pkg.shipTime ? pkg.shipTime.replace('T', ' ').substring(0, 10) : '-'}</Text></Text>
+        <span style={{ color: '#D9D9D9', margin: '0 4px' }}>|</span>
+        <Text style={{ fontSize: 13 }}><Text type="secondary">{isDelivered ? '到货: ' : '预计到货: '}</Text><Text strong style={{ color: isDelivered ? STATUS_COLORS.success : undefined }}>{pkg.estimatedArrival || '-'}</Text></Text>
+        {hasTracking && (<><span style={{ color: '#D9D9D9', margin: '0 4px' }}>|</span><TruckOutlined style={{ color: '#8C8C8C', fontSize: 12 }} /><Text type="secondary" style={{ fontSize: 12 }}>{pkg.logisticsCompany} · <span style={{ fontFamily: 'monospace' }}>{pkg.trackingNo}</span></Text></>)}
+        {lastNode && !open && <Text type="secondary" style={{ fontSize: 11, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lastNode.description}</Text>}
+        {!lastNode && <span style={{ flex: 1 }} />}
+        <Text style={{ fontSize: 11, color: '#8C8C8C', marginLeft: 'auto' }}>{(pkg.lineItems || []).reduce((s: number, li: any) => s + li.quantity, 0)}件</Text>
+        <span style={{ color: '#8C8C8C', fontSize: 11 }}>{open ? <UpOutlined /> : <DownOutlined />}</span>
+      </div>
+      {open && (<>
+        <div style={{ padding: '6px 14px', borderTop: '1px solid #F0F0F0' }}>
+          <Table rowKey="skuCode" size="small" pagination={false} dataSource={pkg.lineItems || []}
+            columns={[
+              { title: 'SKU', dataIndex: 'skuCode', width: 100, render: (c: string) => <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{c}</span> },
+              { title: '商品名称', dataIndex: 'skuName', width: 180 },
+              { title: '数量', dataIndex: 'quantity', width: 50, align: 'center' as const },
+              { title: '库存', dataIndex: 'stockStatus', width: 70, render: (s: string) => { const info = STOCK_STATUS_MAP[s as keyof typeof STOCK_STATUS_MAP]; return info ? <Tag color={info.color} style={{ margin: 0, fontSize: 10 }}>{info.label}</Tag> : null; } },
+            ]} />
+        </div>
+        {/* 缺货行项供应商物流信息 */}
+        {(() => {
+          const shortageItems = (pkg.lineItems || []).filter((li: any) => li.stockStatus !== 'IN_STOCK' && li.supplierInfo);
+          if (shortageItems.length === 0) return null;
+          return (
+            <div style={{ padding: '6px 14px', borderTop: '1px dashed #F0F0F0', background: '#FFFBEB' }}>
+              <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}><SendOutlined style={{ fontSize: 10, marginRight: 4 }} />供应商物流</Text>
+              {shortageItems.map((li: any, si: number) => {
+                const sInfo = li.supplierInfo;
+                const supStatusInfo = SUPPLIER_STATUS_MAP[sInfo.supplierStatus as keyof typeof SUPPLIER_STATUS_MAP];
+                const parts: string[] = [];
+                if (sInfo.trackingNumber) parts.push(sInfo.trackingNumber);
+                if (sInfo.shipTime) parts.push(`发货 ${sInfo.shipTime}`);
+                parts.push(`预计到基地 ${sInfo.expectedArrivalDate}`);
+                return (
+                  <div key={si} style={{ fontSize: 11, color: '#595959', lineHeight: '18px', marginBottom: si < shortageItems.length - 1 ? 2 : 0 }}>
+                    {supStatusInfo && <Tag color={supStatusInfo.color} style={{ margin: '0 4px 0 0', fontSize: 10, lineHeight: '16px' }}>{supStatusInfo.label}</Tag>}
+                    <span>{parts.join(' · ')}</span>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+        {hasTracking && (
+          <div style={{ padding: '8px 14px', borderTop: '1px solid #F0F0F0', background: '#FAFAFA' }}>
+            <Text type="secondary" style={{ fontSize: 11, marginBottom: 6, display: 'block' }}><TruckOutlined /> 物流轨迹</Text>
+            {(pkg.trackingNodes || []).map((n: any, ni: number) => {
+              const isLast = ni === pkg.trackingNodes.length - 1;
+              return <div key={ni} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <div style={{ textAlign: 'center', width: 14, flexShrink: 0 }}><div style={{ width: 8, height: 8, borderRadius: '50%', background: isLast && isDelivered ? STATUS_COLORS.success : '#FF6B00', margin: '4px auto 0' }} />{!isLast && <div style={{ width: 1, height: 20, background: '#E8E8E8', margin: '0 auto' }} />}</div>
+                <div><Text style={{ fontSize: 11 }}>{n.description}</Text><Text type="secondary" style={{ fontSize: 10, marginLeft: 8 }}>{(n.time || '').replace('T', ' ').substring(5, 16)} · {n.location || ''}</Text></div>
+              </div>;
+            })}
+          </div>
+        )}
+      </>)}
+    </div>
+  );
+}
 
 // ========== 折叠区块 ==========
 
@@ -47,7 +131,7 @@ export default function OrderDetail() {
 
   const order = mockOrders.find((o) => o.orderNo === orderNo);
 
-  // Hooks 必须在所有 early return 之前
+  // Hooks 必须在 early return 之前
   const [localStatus, setLocalStatus] = useState<OrderStatus | null>(null);
 
   if (!order) return (<div style={{ textAlign: 'center', padding: 80 }}><Title level={3} type="secondary">订单未找到</Title><Button type="link" onClick={() => navigate('/orders')}>返回订单列表</Button></div>);
@@ -57,10 +141,12 @@ export default function OrderDetail() {
   const linkedExceptions = mockExceptions.filter((e) => e.orderNo === orderNo);
   const splitData = getSplitShipmentData(order.orderNo);
   const parcels = getOrderParcels(order.orderNo);
-  const appointment = order.bizType === 'APPOINTMENT' ? mockAppointments.find((a) => a.orderNo === orderNo) : null;
-  const customOrder = order.bizType === 'CUSTOM' ? mockCustomOrders.find((c) => c.orderNo === orderNo) : null;
-  const call400Order = order.bizType === 'CALL_400' ? mockCall400Orders.find((c) => c.originOrderNo === orderNo) : null;
-  const isSpecialType = ['APPOINTMENT', 'CUSTOM', 'CALL_400', 'REQUISITION'].includes(order.bizType);
+  const orderBizType = order.bizType;
+  const isDirect = orderBizType === 'DIRECT';
+  const appointment = orderBizType === 'RESERVE' ? mockAppointments.find((a) => a.orderNo === orderNo) : null;
+  const customOrder = orderBizType === 'CUSTOM' ? mockCustomOrders.find((c) => c.orderNo === orderNo) : null;
+  const call400Order = order.orderSource === 'CALL_400' ? mockCall400Orders.find((c) => c.originOrderNo === orderNo) : null;
+  const isSpecialType = orderBizType === 'RESERVE' || orderBizType === 'CUSTOM';
 
   const displayStatus = localStatus || order.status;
   const isPendingReview = displayStatus === 'PENDING_REVIEW';
@@ -73,21 +159,48 @@ export default function OrderDetail() {
   const shortagePolicy = order.shortagePolicy;
 
   // 商品明细（平铺所有行项）
-  const pkgs = order.packages || [];
+  const rawPkgs = order.packages || [];
+  // 直发订单构造虚拟包裹以复用包裹列表 UI
+  const directTrackingNo = displayStatus === 'IN_TRANSIT' || displayStatus === 'DELIVERED' || displayStatus === 'COMPLETED' ? `SF${order.orderNo.replace(/\D/g, '').substring(0, 12)}` : '';
+  const directLogisticsCompany = (() => {
+    if (!directTrackingNo) return '';
+    if (directTrackingNo.startsWith('SF')) return '顺丰速运';
+    if (directTrackingNo.startsWith('JD')) return '京东物流';
+    if (directTrackingNo.startsWith('DP')) return '德邦快递';
+    if (directTrackingNo.startsWith('YT')) return '圆通速递';
+    return '';
+  })();
+  const supplierAddresses: Record<string, string> = {
+    '华东基地': '江苏省无锡市锡山区安镇街道大成工业园东盛路9号',
+    '华南基地': '广东省清远市佛冈县石角镇建滔工业园',
+    '华北基地': '天津市静海区子牙循环经济产业区',
+    '西南基地': '重庆市永川区凤凰湖产业园',
+  };
+  const directSupplierAddress = supplierAddresses[order.baseSource] || `${order.baseSource}仓库`;
+  const pkgs = (rawPkgs.length === 0 && isDirect) ? [{
+    packageId: `PKG-${order.orderNo}-D`,
+    packageType: 'ORIGINAL' as const, status: (displayStatus === 'DELIVERED' || displayStatus === 'COMPLETED') ? 'DELIVERED' as const : displayStatus === 'IN_TRANSIT' ? 'SHIPPED' as const : 'PENDING' as const,
+    lineItems: order.items.map(it => ({ ...it, stockStatus: 'IN_STOCK' as const, shortageQty: 0 })),
+    shippingMethod: 'STANDALONE' as const,
+    logisticsCompany: directLogisticsCompany,
+    trackingNo: directTrackingNo,
+    shipTime: order.createTime,
+    estimatedArrival: displayStatus === 'IN_TRANSIT' ? '运输中' : (displayStatus === 'DELIVERED' || displayStatus === 'COMPLETED') ? '已签收' : '-',
+    trackingNodes: displayStatus === 'IN_TRANSIT' ? [
+      { time: order.createTime, location: directSupplierAddress, description: '供应商已发货，直发运输中' },
+    ] : (displayStatus === 'DELIVERED' || displayStatus === 'COMPLETED') ? [
+      { time: order.createTime, location: directSupplierAddress, description: '供应商已发货' },
+      { time: order.createTime, location: `${order.receiverCity}`, description: `已签收，签收人: ${order.receiverName}` },
+    ] : [],
+  }] : rawPkgs;
+
   const allLineItems: (LineItem & { packageLabel: string; packageType: string })[] = useMemo(() => {
     if (pkgs.length === 0) {
-      return order.items.map((it) => ({
-        ...it,
-        stockStatus: 'IN_STOCK' as const,
-        packageLabel: '包裹',
-        packageType: 'ORIGINAL' as const,
-      }));
+      return order.items.map((it) => ({ ...it, stockStatus: 'IN_STOCK' as const, packageLabel: '包裹', packageType: 'ORIGINAL' as const }));
     }
     return pkgs.flatMap((p, pkgIdx) =>
-      p.lineItems.map((li) => ({
-        ...li,
-        packageLabel: `包裹${pkgIdx + 1}`,
-        packageType: p.packageType,
+      (p.lineItems || []).map((li) => ({
+        ...li, packageLabel: `包裹${pkgIdx + 1}`, packageType: p.packageType,
       }))
     );
   }, [pkgs, order.items]);
@@ -96,25 +209,13 @@ export default function OrderDetail() {
   const hasExternalPurchase = pkgs.some((p) => p.lineItems.some((li) => li.stockStatus !== 'IN_STOCK'));
 
   const productColumns: ColumnsType<typeof allLineItems[number]> = [
-    { title: 'SKU编码', dataIndex: 'skuCode', width: 120, render: (c: string) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{c}</span> },
-    { title: '商品名称', dataIndex: 'skuName', width: 200 },
+    { title: 'SKU编码', dataIndex: 'skuCode', width: 110, render: (c: string) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{c}</span> },
+    { title: '商品名称', dataIndex: 'skuName', width: 180 },
+    { title: '车架号', key: 'vin', width: 90, render: (_: unknown, __: unknown, idx: number) => { const v = order.vinCodes[idx]; return v ? <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{v}</span> : <Text type="secondary">-</Text>; } },
     { title: '单价', dataIndex: 'unitPrice', width: 80, align: 'right', render: (p: number) => `¥${p.toLocaleString()}` },
     { title: '数量', dataIndex: 'quantity', width: 60, align: 'center' },
-    {
-      title: '库存状态', dataIndex: 'stockStatus', width: 90,
-      render: (s: string) => {
-        const info = STOCK_STATUS_MAP[s as keyof typeof STOCK_STATUS_MAP];
-        return info ? <Tag color={info.color} style={{ margin: 0 }}>{info.label}</Tag> : <span>-</span>;
-      },
-    },
-    { title: '所属包裹', dataIndex: 'packageLabel', width: 80, render: (l: string, r: typeof allLineItems[number]) => <Tag color={r.packageType === 'SUPPLEMENT' ? 'orange' : 'blue'} style={{ margin: 0, fontSize: 11 }}>{l}</Tag> },
-    {
-      title: '供应商', dataIndex: 'supplierInfo', width: 160,
-      render: (si: typeof allLineItems[number]['supplierInfo']) => {
-        if (!si) return <Text type="secondary">-</Text>;
-        return <span style={{ fontSize: 11, color: STATUS_COLORS.warning }}>🏭 {si.supplierName} · 预计 {si.expectedArrivalDate} 到</span>;
-      },
-    },
+    { title: '所属包裹', dataIndex: 'packageLabel', width: 70, render: (l: string, r: typeof allLineItems[number]) => <Tag color={r.packageType === 'SUPPLEMENT' ? 'orange' : 'blue'} style={{ margin: 0, fontSize: 11 }}>{l}</Tag> },
+    { title: '供应商', dataIndex: 'supplierInfo', width: 120, render: (si: typeof allLineItems[number]['supplierInfo']) => <span style={{ fontSize: 11 }}>{si?.supplierName || (isDirect ? order.baseSource : '-')}</span> },
   ];
 
   // 颜色映射
@@ -124,13 +225,6 @@ export default function OrderDetail() {
     if (c === STATUS_COLORS.success) return 'success';
     if (c === STATUS_COLORS.warning) return 'warning';
     if (c === STATUS_COLORS.normal) return 'processing';
-    return 'default';
-  };
-
-  const pkgStatusTagColor = (s: string) => {
-    if (s === 'DELIVERED' || s === 'COMPLETED') return 'success';
-    if (s === 'SHIPPED') return 'processing';
-    if (s === 'WAITING_RESTOCK') return 'warning';
     return 'default';
   };
 
@@ -154,13 +248,15 @@ export default function OrderDetail() {
     const allPastStatus = (statuses: string[]) => pkgs.every(p => statuses.includes(p.status));
     const anyPastStatus = (statuses: string[]) => pkgs.some(p => statuses.includes(p.status));
 
+    // 直发订单跳过仓库节点(2=排单/3=拣货/4=待发)
+    const skipWarehouse = isDirect && displayStatus !== 'PENDING_REVIEW';
     const nodeCompleted: boolean[] = [
       true,                                                      // 0 下单
       displayStatus !== 'PENDING_REVIEW',                        // 1 审核中
-      !['PENDING_REVIEW', 'SCHEDULING'].includes(displayStatus), // 2 排单中
-      allPastStatus(['READY', 'SHIPPED', 'DELIVERED', 'COMPLETED']), // 3 拣货中
-      allPastStatus(['SHIPPED', 'DELIVERED', 'COMPLETED']),     // 4 待发货
-      allPastStatus(['SHIPPED', 'DELIVERED', 'COMPLETED']),     // 5 运输中
+      skipWarehouse || !['PENDING_REVIEW', 'SCHEDULING'].includes(displayStatus), // 2 排单中
+      skipWarehouse || allPastStatus(['READY', 'SHIPPED', 'DELIVERED', 'COMPLETED']), // 3 拣货中
+      skipWarehouse || allPastStatus(['SHIPPED', 'DELIVERED', 'COMPLETED']),     // 4 待发货
+      allPastStatus(isDirect ? ['DELIVERED', 'COMPLETED'] : ['SHIPPED', 'DELIVERED', 'COMPLETED']), // 5 运输中
       allPastStatus(['DELIVERED', 'COMPLETED']),                // 6 已签收/完成
     ];
 
@@ -192,14 +288,8 @@ export default function OrderDetail() {
       if (nodeIdx === 0) return order.createTime.replace('T', ' ').substring(5, 16);
       if (nodeIdx === 1) return order.createTime.replace('T', ' ').substring(5, 16);
       if (nodeIdx === 2) return totalPkgCount > 1 ? `拆为${totalPkgCount}包裹` : '整单发出';
-      if (nodeIdx === 3) {
-        const pickingNow = pkgs.filter(p => p.status === 'PICKING').length;
-        return pickingNow === 0 ? '拣货已完成' : `${pickingNow}/${totalPkgCount}包裹拣货中`;
-      }
-      if (nodeIdx === 4) {
-        const waitingNow = pkgs.filter(p => p.status === 'WAITING_RESTOCK').length;
-        return waitingNow === 0 ? '全部包裹已发货' : `${waitingNow}包裹缺件等待`;
-      }
+      if (nodeIdx === 3) return nodeCompleted[3] ? '拣货已完成' : `${pkgs.filter(p => p.status === 'PICKING').length}/${totalPkgCount}包裹拣货中`;
+      if (nodeIdx === 4) return nodeCompleted[4] ? '全部待发' : `${pkgs.filter(p => p.status === 'WAITING_RESTOCK').length}包裹缺件等待`;
       return '';
     };
 
@@ -268,12 +358,10 @@ export default function OrderDetail() {
           })}
         </div>
 
-        {/* ===== 节点5(运输中)包裹级状态说明 — 仅活跃时展示 ===== */}
+        {/* ===== 节点5(运输中)包裹级状态说明 — 仅活跃时垂直展示 ===== */}
         {activeIdx === 5 && totalPkgCount > 1 && (
           <div style={{ display: 'flex', marginTop: 6 }}>
-            {/* 前5个节点占位 */}
             {Array.from({ length: 5 }).map((_, i) => <div key={i} style={{ flex: 1 }} />)}
-            {/* 节点5下方：每个包裹一行 */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
               {pkgs.map((p, pi) => {
                 const dot = getPkgStatusDot(p.status);
@@ -285,17 +373,14 @@ export default function OrderDetail() {
                 );
               })}
             </div>
-            {/* 节点6占位 */}
             <div style={{ flex: 1 }} />
           </div>
         )}
 
-        {/* ===== 节点6(已签收/完成)包裹级状态说明 — 仅活跃时展示 ===== */}
+        {/* ===== 节点6(已签收/完成)包裹级状态说明 — 仅活跃时垂直展示 ===== */}
         {activeIdx === 6 && totalPkgCount > 1 && (
           <div style={{ display: 'flex', marginTop: 4 }}>
-            {/* 前6个节点占位 */}
             {Array.from({ length: 6 }).map((_, i) => <div key={i} style={{ flex: 1 }} />)}
-            {/* 节点6下方：每个包裹一行 */}
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
               {pkgs.map((p, pi) => {
                 const dot = getPkgStatusDot(p.status);
@@ -386,18 +471,12 @@ export default function OrderDetail() {
         <Card
           style={{
             marginBottom: 16,
-            borderLeft: `4px solid ${
-              order.bizType === 'APPOINTMENT' ? '#0284C7' :
-              order.bizType === 'CUSTOM' ? '#7C3AED' :
-              order.bizType === 'CALL_400' ? '#16A34A' : '#8C8C8C'
-            }`,
+            borderLeft: `4px solid ${orderBizType === 'RESERVE' ? '#0284C7' : '#7C3AED' }`,
           }}
           title={
             <Space>
-              {order.bizType === 'APPOINTMENT' && <CalendarOutlined style={{ color: '#0284C7' }} />}
-              {order.bizType === 'CUSTOM' && <AppstoreOutlined style={{ color: '#7C3AED' }} />}
-              {order.bizType === 'CALL_400' && <FileProtectOutlined style={{ color: '#16A34A' }} />}
-              {order.bizType === 'REQUISITION' && <ShoppingCartOutlined style={{ color: '#8C8C8C' }} />}
+              {orderBizType === 'RESERVE' && <CalendarOutlined style={{ color: '#0284C7' }} />}
+              {orderBizType === 'CUSTOM' && <AppstoreOutlined style={{ color: '#7C3AED' }} />}
               <span>{BIZ_TYPE_MAP[order.bizType]}订单 - 专用信息</span>
               <Tag color={displayStatus === 'PENDING_REVIEW' ? '#F59E0B' : ORDER_STATUS_COLOR_MAP[displayStatus]}>
                 {ORDER_STATUS_MAP[displayStatus]}
@@ -424,7 +503,7 @@ export default function OrderDetail() {
                       onOk: () => { setLocalStatus('ORDER_TERMINATED'); message.success('订单已拒绝，流程终止'); },
                     });
                   }}>审核拒绝</Button>
-                  <Button size="small" danger icon={<CloseCircleOutlined />} disabled={isTerminal} onClick={() => {
+                  <Button size="small" danger icon={<CloseCircleOutlined />} onClick={() => {
                     Modal.confirm({
                       title: '终止订单',
                       content: `确认终止订单 ${order.orderNo}？终止后订单将不再继续履约。`,
@@ -434,7 +513,7 @@ export default function OrderDetail() {
                   }}>终止订单</Button>
                 </>
               ) : (
-                <Button size="small" danger icon={<CloseCircleOutlined />} disabled={isTerminal} onClick={() => {
+                <Button size="small" danger icon={<CloseCircleOutlined />} onClick={() => {
                   Modal.confirm({
                     title: '终止订单',
                     content: `确认终止订单 ${order.orderNo}？终止后订单将不再继续履约。`,
@@ -447,7 +526,7 @@ export default function OrderDetail() {
           }
         >
           {/* --- 预约单信息 --- */}
-          {order.bizType === 'APPOINTMENT' && appointment && (
+          {orderBizType === 'RESERVE' && appointment && (
             <Descriptions column={4} size="small" colon={false} style={{ marginBottom: 0 }}>
               <Descriptions.Item label="预约单号"><span style={{ fontFamily: 'monospace' }}>{appointment.appointNo}</span></Descriptions.Item>
               <Descriptions.Item label="预约状态"><Tag color={APPOINT_STATUS_COLORS[appointment.appointStatus]}>{APPOINT_STATUS_MAP[appointment.appointStatus]}</Tag></Descriptions.Item>
@@ -458,242 +537,45 @@ export default function OrderDetail() {
               <Descriptions.Item label="预约备注" span={2}>{appointment.remark || <Text type="secondary">无</Text>}</Descriptions.Item>
             </Descriptions>
           )}
-          {order.bizType === 'APPOINTMENT' && !appointment && (
+          {orderBizType === 'RESERVE' && !appointment && (
             <Text type="secondary">暂无预约单数据</Text>
           )}
 
-          {/* --- 定制订单信息 --- */}
-          {order.bizType === 'CUSTOM' && customOrder && (
-            <Row gutter={24}>
-              <Col span={12}>
-                <Descriptions column={2} size="small" colon={false}>
-                  <Descriptions.Item label="定制单号"><span style={{ fontFamily: 'monospace' }}>{customOrder.customNo}</span></Descriptions.Item>
-                  <Descriptions.Item label="定制类型"><Tag color={CUSTOM_TYPE_MAP[customOrder.customType]?.color}>{CUSTOM_TYPE_MAP[customOrder.customType]?.label}</Tag></Descriptions.Item>
-                  <Descriptions.Item label="审批状态"><Tag color={CUSTOM_APPROVAL_MAP[customOrder.approvalStatus]?.color}>{CUSTOM_APPROVAL_MAP[customOrder.approvalStatus]?.label}</Tag></Descriptions.Item>
-                  <Descriptions.Item label="预计完工">{customOrder.expectFinishDate}</Descriptions.Item>
-                  <Descriptions.Item label="规格描述" span={2}>{customOrder.specDescription}</Descriptions.Item>
-                  <Descriptions.Item label="工艺要求" span={2}>{customOrder.processRequirement || '无特殊工艺要求'}</Descriptions.Item>
-                  <Descriptions.Item label="报价金额"><Text strong style={{ color: '#FF6B00' }}>¥{customOrder.quoteAmount.toLocaleString()}</Text></Descriptions.Item>
-                  <Descriptions.Item label="VIN码"><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{customOrder.vinCode}</span></Descriptions.Item>
-                </Descriptions>
-              </Col>
-              <Col span={12}>
-                <Descriptions column={1} size="small" colon={false}>
-                  <Descriptions.Item label="材料费">¥{customOrder.materialCost.toLocaleString()}</Descriptions.Item>
-                  <Descriptions.Item label="工时费">¥{customOrder.laborCost.toLocaleString()}</Descriptions.Item>
-                  <Descriptions.Item label="加价系数">{customOrder.markupRate}%</Descriptions.Item>
-                  {customOrder.attachments.length > 0 && (
-                    <Descriptions.Item label="附件">{customOrder.attachments.map((a: string) => <Tag key={a} icon={<PaperClipOutlined />} color="blue" style={{ cursor: 'pointer' }}>{a}</Tag>)}</Descriptions.Item>
-                  )}
-                </Descriptions>
-              </Col>
-            </Row>
+          {/* --- 定制订单信息（仅核心字段） --- */}
+          {orderBizType === 'CUSTOM' && customOrder && (
+            <Descriptions column={4} size="small" colon={false}>
+              <Descriptions.Item label="定制单号"><span style={{ fontFamily: 'monospace' }}>{customOrder.customNo}</span></Descriptions.Item>
+              <Descriptions.Item label="定制类型"><Tag color={CUSTOM_TYPE_MAP[customOrder.customType]?.color}>{CUSTOM_TYPE_MAP[customOrder.customType]?.label}</Tag></Descriptions.Item>
+              <Descriptions.Item label="审批状态"><Tag color={CUSTOM_APPROVAL_MAP[customOrder.approvalStatus]?.color}>{CUSTOM_APPROVAL_MAP[customOrder.approvalStatus]?.label}</Tag></Descriptions.Item>
+              <Descriptions.Item label="预计完工">{customOrder.expectFinishDate}</Descriptions.Item>
+            </Descriptions>
           )}
-          {order.bizType === 'CUSTOM' && !customOrder && (
+          {orderBizType === 'CUSTOM' && !customOrder && (
             <Text type="secondary">暂无定制订单数据</Text>
           )}
 
-          {/* --- 400免费订单信息 --- */}
-          {order.bizType === 'CALL_400' && call400Order && (
-            <Descriptions column={4} size="small" colon={false} style={{ marginBottom: 0 }}>
-              <Descriptions.Item label="400单号"><span style={{ fontFamily: 'monospace' }}>{call400Order.call400No}</span></Descriptions.Item>
-              <Descriptions.Item label="投诉工单号"><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{call400Order.complaintNo}</span></Descriptions.Item>
-              <Descriptions.Item label="申请原因"><Tag>{APPLY_REASON_MAP[call400Order.applyReason]}</Tag></Descriptions.Item>
-              <Descriptions.Item label="免费类型"><Tag color={FREE_TYPE_MAP[call400Order.freeType]?.color}>{FREE_TYPE_MAP[call400Order.freeType]?.label}</Tag></Descriptions.Item>
-              <Descriptions.Item label="审批状态"><Tag color={CALL400_APPROVAL_MAP[call400Order.approvalStatus]?.color}>{CALL400_APPROVAL_MAP[call400Order.approvalStatus]?.label}</Tag></Descriptions.Item>
-              <Descriptions.Item label="申请人">{call400Order.applicant}</Descriptions.Item>
-              <Descriptions.Item label="经销商">{call400Order.dealerName}</Descriptions.Item>
-              <Descriptions.Item label="创建时间">{call400Order.createTime.replace('T', ' ').substring(0, 16)}</Descriptions.Item>
-              <Descriptions.Item label="补发商品" span={4}>
-                {call400Order.items.map((item, idx) => (
-                  <Tag key={idx} style={{ marginBottom: 4 }}>{item.skuName} × {item.quantity}</Tag>
-                ))}
-              </Descriptions.Item>
-            </Descriptions>
-          )}
-          {order.bizType === 'CALL_400' && !call400Order && (
-            <Text type="secondary">暂无400免费订单数据</Text>
-          )}
-
-          {/* --- 领用订单信息 --- */}
-          {order.bizType === 'REQUISITION' && (
-            <Descriptions column={3} size="small" colon={false} style={{ marginBottom: 0 }}>
-              <Descriptions.Item label="领用经销商">{order.dealerName}</Descriptions.Item>
-              <Descriptions.Item label="基地来源">{order.baseSource}</Descriptions.Item>
-              <Descriptions.Item label="下单时间">{order.createTime.replace('T', ' ').substring(0, 16)}</Descriptions.Item>
-              <Descriptions.Item label="SKU数量">{order.skuCount} 种</Descriptions.Item>
-              <Descriptions.Item label="总金额"><Text strong style={{ color: '#FF6B00' }}>¥{order.totalAmount.toLocaleString()}</Text></Descriptions.Item>
-              <Descriptions.Item label="收货地址">{order.receiverProvince} {order.receiverCity} {order.receiverDistrict} {order.receiverAddress}</Descriptions.Item>
-            </Descriptions>
-          )}
         </Card>
       )}
 
-      {/* ========== 包裹列表（可折叠，物流内嵌） ========== */}
-      {pkgs.length > 0 && (
-        <CollapsibleSection
-          icon={<InboxOutlined style={{ color: '#FF6B00' }} />}
-          title="包裹列表"
-          defaultExpanded
-          badge={<Space size={4}>
-            {(() => {
-              const statusCounts = pkgs.reduce((acc, p) => { acc[p.status] = (acc[p.status] || 0) + 1; return acc; }, {} as Record<string, number>);
-              return Object.entries(statusCounts).map(([s, c]) => (
-                <Tag key={s} color={pkgStatusTagColor(s)} style={{ margin: 0, fontSize: 11 }}>
-                  {PACKAGE_STATUS_MAP[s as keyof typeof PACKAGE_STATUS_MAP]} ×{c}
-                </Tag>
-              ));
-            })()}
-          </Space>}
-          summary={`共 ${pkgs.length} 个包裹 · ${pkgs.reduce((s, p) => s + p.lineItems.reduce((ss, li) => ss + li.quantity, 0), 0)} 件`}
-        >
-          {pkgs.map((pkg, idx) => {
-            const pkgColor = pkg.status === 'DELIVERED' || pkg.status === 'COMPLETED' ? STATUS_COLORS.success :
-              pkg.status === 'SHIPPED' ? STATUS_COLORS.normal :
-              pkg.status === 'WAITING_RESTOCK' ? STATUS_COLORS.warning : STATUS_COLORS.neutral;
-            const isDelivered = ['DELIVERED', 'COMPLETED'].includes(pkg.status);
-            const hasTracking = !!pkg.trackingNo;
-
-            return (
-              <div key={pkg.packageId || idx} style={{
-                marginBottom: idx < pkgs.length - 1 ? 10 : 0,
-                border: `1px solid ${isDelivered ? STATUS_COLORS.success : pkgColor}30`, borderRadius: 6, overflow: 'hidden',
-              }}>
-                {/* 包裹标签栏 */}
-                <div style={{ padding: '10px 14px', background: `${pkgColor}08`, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <Tag color={pkg.packageType === 'SUPPLEMENT' ? 'orange' : 'blue'} style={{ margin: 0 }}>
-                    包裹{idx + 1}
-                  </Tag>
-                  <Tag color={pkgStatusTagColor(pkg.status)} style={{ margin: 0 }}>{PACKAGE_STATUS_MAP[pkg.status]}</Tag>
-                  <span style={{ color: '#D9D9D9', margin: '0 4px' }}>|</span>
-                  <Text style={{ fontSize: 13 }}>
-                    <Text type="secondary">{isDelivered ? '发货: ' : '预计发货: '}</Text>
-                    <Text strong>{pkg.shipTime ? pkg.shipTime.replace('T', ' ').substring(0, 10) : '-'}</Text>
-                  </Text>
-                  <span style={{ color: '#D9D9D9', margin: '0 4px' }}>|</span>
-                  <Text style={{ fontSize: 13 }}>
-                    <Text type="secondary">{isDelivered ? '到货: ' : '预计到货: '}</Text>
-                    <Text strong style={{ color: isDelivered ? STATUS_COLORS.success : undefined }}>
-                      {pkg.estimatedArrival || '-'}
-                    </Text>
-                  </Text>
-                  {hasTracking && (
-                    <>
-                      <span style={{ color: '#D9D9D9', margin: '0 4px' }}>|</span>
-                      <TruckOutlined style={{ color: '#8C8C8C', fontSize: 12 }} />
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        {pkg.logisticsCompany} · <span style={{ fontFamily: 'monospace' }}>{pkg.trackingNo}</span>
-                      </Text>
-                    </>
-                  )}
-                  <Text style={{ marginLeft: 'auto', fontSize: 11, color: '#8C8C8C' }}>
-                    {pkg.lineItems.reduce((s, li) => s + li.quantity, 0)}件
-                  </Text>
-                </div>
-
-                {/* 行项明细 */}
-                <div style={{ padding: '6px 14px' }}>
-                  <Table
-                    rowKey="skuCode" size="small" pagination={false}
-                    dataSource={pkg.lineItems}
-                    columns={[
-                      { title: 'SKU', dataIndex: 'skuCode', width: 100, render: (c: string) => <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{c}</span> },
-                      { title: '商品名称', dataIndex: 'skuName', width: 180, render: (n: string) => <span style={{ fontSize: 12 }}>{n}</span> },
-                      { title: '数量', dataIndex: 'quantity', width: 50, align: 'center' as const },
-                      {
-                        title: '库存', dataIndex: 'stockStatus', width: 70,
-                        render: (s: string) => {
-                          const info = STOCK_STATUS_MAP[s as keyof typeof STOCK_STATUS_MAP];
-                          return info ? <Tag color={info.color} style={{ margin: 0, fontSize: 10 }}>{info.label}</Tag> : null;
-                        },
-                      },
-                    ]}
-                  />
-                </div>
-
-                {/* 物流轨迹（内嵌到包裹卡片，数据驱动） */}
-                {hasTracking && (
-                  <div style={{ padding: '8px 14px', borderTop: '1px solid #F0F0F0', background: '#FAFAFA' }}>
-                    <Text type="secondary" style={{ fontSize: 11, marginBottom: 6, display: 'block' }}>
-                      <TruckOutlined /> 物流轨迹
-                    </Text>
-                    <div style={{ paddingLeft: 4 }}>
-                      {pkg.trackingNodes && pkg.trackingNodes.length > 0 ? (
-                        pkg.trackingNodes.map((n, ni) => {
-                          const isLastNode = ni === pkg.trackingNodes!.length - 1;
-                          const nodeColor = isLastNode && isDelivered ? STATUS_COLORS.success : '#FF6B00';
-                          return (
-                            <div key={ni} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                              <div style={{ textAlign: 'center', width: 14, flexShrink: 0 }}>
-                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: nodeColor, margin: '4px auto 0' }} />
-                                {!isLastNode && <div style={{ width: 1, height: 20, background: '#E8E8E8', margin: '0 auto' }} />}
-                              </div>
-                              <div style={{ paddingBottom: isLastNode ? 0 : 4 }}>
-                                <Text style={{ fontSize: 11 }}>{n.description}</Text>
-                                <Text type="secondary" style={{ fontSize: 10, marginLeft: 8 }}>
-                                  {n.time.replace('T', ' ').substring(5, 16)} · {n.location}
-                                </Text>
-                              </div>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        /* 兜底：无详细节点时显示简化信息 */
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                          <div style={{ textAlign: 'center', width: 14, flexShrink: 0 }}>
-                            <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#FF6B00', margin: '4px auto 0' }} />
-                          </div>
-                          <Text style={{ fontSize: 11 }}>
-                            {isDelivered ? '已签收' : `运输中 · 预计 ${pkg.estimatedArrival || '-'} 送达`}
-                          </Text>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* 供应商物流状态（缺件包裹） */}
-                {pkg.supplierStatus && (
-                  <div style={{ padding: '8px 14px', borderTop: `1px dashed ${STATUS_COLORS.warning}40`, background: '#FFFBEB' }}>
-                    <Text type="secondary" style={{ fontSize: 11, marginBottom: 4, display: 'block' }}>
-                      <SendOutlined /> 供应商物流
-                    </Text>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <Tag color={SUPPLIER_STATUS_MAP[pkg.supplierStatus].color} style={{ margin: 0 }}>
-                        {SUPPLIER_STATUS_MAP[pkg.supplierStatus].label}
-                      </Tag>
-                      {pkg.supplierLogisticsCompany && (
-                        <Text type="secondary" style={{ fontSize: 11 }}>
-                          {pkg.supplierLogisticsCompany} · {pkg.supplierTrackingNo}
-                          {pkg.supplierShipTime && ` · 发 ${pkg.supplierShipTime.replace('T', ' ').substring(0, 10)}`}
-                          {pkg.supplierEstimatedArrival && ` · 到基地 ${pkg.supplierEstimatedArrival}`}
-                        </Text>
-                      )}
-                    </div>
-                    {/* 供应商物流节点 */}
-                    {pkg.supplierTrackingNodes && pkg.supplierTrackingNodes.length > 0 && (
-                      <div style={{ paddingLeft: 4, marginTop: 4 }}>
-                        {pkg.supplierTrackingNodes.map((n, ni) => (
-                          <div key={ni} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                            <div style={{ textAlign: 'center', width: 14, flexShrink: 0 }}>
-                              <div style={{ width: 6, height: 6, borderRadius: '50%', background: n.description.includes('到达') ? STATUS_COLORS.success : '#8C8C8C', margin: '4px auto 0' }} />
-                              {ni < pkg.supplierTrackingNodes!.length - 1 && <div style={{ width: 1, height: 14, background: '#F0F0F0', margin: '0 auto' }} />}
-                            </div>
-                            <div>
-                              <Text style={{ fontSize: 10 }}>{n.description}</Text>
-                              <Text type="secondary" style={{ fontSize: 9, marginLeft: 6 }}>{n.time.replace('T', ' ').substring(0, 16)} · {n.location}</Text>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </CollapsibleSection>
-      )}
+      {/* ========== 包裹列表 ========== */}
+      <Card
+        title={<Space><InboxOutlined style={{ color: '#FF6B00' }} /><span>包裹列表</span></Space>}
+        size="small"
+        style={{ marginBottom: 12 }}
+        extra={<Space size={4}>
+          {pkgs.length > 0 && (() => {
+            const statusCounts = pkgs.reduce((acc: Record<string, number>, p) => { acc[p.status] = (acc[p.status] || 0) + 1; return acc; }, {});
+            return Object.entries(statusCounts).map(([s, c]) => (
+              <Tag key={s} color={getPkgTagColor(s)} style={{ margin: 0, fontSize: 11 }}>{PACKAGE_STATUS_MAP[s as keyof typeof PACKAGE_STATUS_MAP]} ×{c}</Tag>
+            ));
+          })()}
+          <Text type="secondary" style={{ fontSize: 12 }}>共 {pkgs.length} 个包裹 · {pkgs.reduce((s: number, p: any) => s + (p.lineItems || []).reduce((ss: number, li: any) => ss + li.quantity, 0), 0)} 件</Text>
+        </Space>}
+      >
+        {pkgs.length === 0 ? <Text type="secondary">包裹待确定（排单完成后分配）</Text> : pkgs.map((pkg, idx) => (
+          <PkgCard key={pkg.packageId || idx} pkg={pkg} idx={idx} isDirect={isDirect} isLast={idx === pkgs.length - 1} />
+        ))}
+        </Card>
 
       {/* 主体：商品明细（始终展开） + 供应商协同 + 侧边栏 */}
       <Row gutter={16}>
@@ -712,12 +594,6 @@ export default function OrderDetail() {
               </Space>
             }
           >
-            {order.vinCodes.length > 0 && (
-              <div style={{ marginBottom: 10 }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>关联车架号：</Text>
-                {order.vinCodes.map((vin) => <Tag key={vin} color="purple" style={{ fontFamily: 'monospace', fontSize: 11 }}>{vin}</Tag>)}
-              </div>
-            )}
             <Table
               rowKey="skuCode" size="small" pagination={false}
               dataSource={allLineItems}
@@ -751,11 +627,74 @@ export default function OrderDetail() {
                   </div>
                   {li.supplierInfo && (
                     <div style={{ marginTop: 6, padding: '8px 12px', background: '#FFF', borderRadius: 4, border: '1px solid #F0F0F0' }}>
-                      <Row gutter={16}>
-                        <Col span={8}><Text type="secondary" style={{ fontSize: 11 }}>供应商</Text><br /><Text style={{ fontSize: 13 }}>{li.supplierInfo.supplierName}</Text></Col>
-                        <Col span={8}><Text type="secondary" style={{ fontSize: 11 }}>预计到货</Text><br /><Text strong style={{ fontSize: 13 }}>{li.supplierInfo.expectedArrivalDate}</Text></Col>
-                        <Col span={8}><Text type="secondary" style={{ fontSize: 11 }}>运单号</Text><br /><Text style={{ fontSize: 13, fontFamily: 'monospace' }}>{li.supplierInfo.trackingNumber || '暂无'}</Text></Col>
-                      </Row>
+                      {(() => {
+                        const si = li.supplierInfo;
+                        const supStat = SUPPLIER_STATUS_MAP[si.supplierStatus as keyof typeof SUPPLIER_STATUS_MAP];
+                        return (
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+                              <Text style={{ fontSize: 13 }}>{si.supplierName}</Text>
+                              {supStat && <Tag color={supStat.color} style={{ margin: 0, fontSize: 11 }}>{supStat.label}</Tag>}
+                            </div>
+                            <Row gutter={16}>
+                              {si.shipTime && <Col span={8}><Text type="secondary" style={{ fontSize: 11 }}>发货时间</Text><br /><Text style={{ fontSize: 13 }}>{si.shipTime}</Text></Col>}
+                              <Col span={8}><Text type="secondary" style={{ fontSize: 11 }}>预计到基地</Text><br /><Text strong style={{ fontSize: 13 }}>{si.expectedArrivalDate}</Text></Col>
+                              <Col span={8}><Text type="secondary" style={{ fontSize: 11 }}>运单号</Text><br /><Text style={{ fontSize: 13, fontFamily: 'monospace' }}>{si.trackingNumber || '-'}</Text></Col>
+                            </Row>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </CollapsibleSection>
+          )}
+
+          {/* 供应商协同：直发订单 — 供应商直发经销商，始终展示 */}
+          {isDirect && (
+            <CollapsibleSection
+              icon={<SendOutlined style={{ color: '#FF6B00' }} />}
+              title="供应商协同"
+              summary={`${pkgs[0]?.logisticsCompany || '待分配物流'} · ${pkgs[0]?.trackingNo || '待分配运单'}`}
+              defaultExpanded
+            >
+              {pkgs.map((pkg: any, pkgIdx: number) => (
+                <div key={pkgIdx} style={{
+                  padding: '10px 14px', marginBottom: pkgIdx < pkgs.length - 1 ? 8 : 0,
+                  border: '1px solid #FF6B0030', borderRadius: 6, background: '#FFF7E6',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+                    <Text strong style={{ fontSize: 13 }}>包裹{pkgIdx + 1} · 供应商直发</Text>
+                    <Tag color="blue" style={{ margin: 0 }}>直发</Tag>
+                    <Tag color={getPkgTagColor(pkg.status)} style={{ margin: 0 }}>{PACKAGE_STATUS_MAP[pkg.status as keyof typeof PACKAGE_STATUS_MAP]}</Tag>
+                  </div>
+                  <Row gutter={16} style={{ marginBottom: 6 }}>
+                    <Col span={8}><Text type="secondary" style={{ fontSize: 11 }}>发货地址</Text><br /><Text style={{ fontSize: 12 }}>{directSupplierAddress}</Text></Col>
+                    <Col span={8}><Text type="secondary" style={{ fontSize: 11 }}>物流公司</Text><br /><Text style={{ fontSize: 13 }}>{pkg.logisticsCompany || '-'}</Text></Col>
+                    <Col span={8}><Text type="secondary" style={{ fontSize: 11 }}>运单号</Text><br /><Text style={{ fontSize: 13, fontFamily: 'monospace' }}>{pkg.trackingNo || '-'}</Text></Col>
+                  </Row>
+                  <Row gutter={16} style={{ marginBottom: 6 }}>
+                    <Col span={8}><Text type="secondary" style={{ fontSize: 11 }}>发货时间</Text><br /><Text style={{ fontSize: 13 }}>{pkg.shipTime ? pkg.shipTime.replace('T', ' ').substring(0, 16) : '-'}</Text></Col>
+                    <Col span={8}><Text type="secondary" style={{ fontSize: 11 }}>预计到达</Text><br /><Text strong style={{ fontSize: 13, color: ['DELIVERED', 'COMPLETED'].includes(pkg.status) ? '#16A34A' : undefined }}>{pkg.estimatedArrival || '-'}</Text></Col>
+                    <Col span={8}><Text type="secondary" style={{ fontSize: 11 }}>收货方</Text><br /><Text style={{ fontSize: 13 }}>{order.dealerName}</Text></Col>
+                  </Row>
+                  {(pkg.trackingNodes || []).length > 0 && (
+                    <div style={{ marginTop: 4, padding: '8px 12px', background: '#FFF', borderRadius: 4, border: '1px solid #F0F0F0' }}>
+                      <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 4 }}><TruckOutlined /> 物流轨迹</Text>
+                      {(pkg.trackingNodes || []).map((n: any, ni: number) => {
+                        const isLastNode = ni === pkg.trackingNodes.length - 1;
+                        const isDelivered = ['DELIVERED', 'COMPLETED'].includes(pkg.status);
+                        return (
+                          <div key={ni} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                            <div style={{ textAlign: 'center', width: 12, flexShrink: 0 }}>
+                              <div style={{ width: 6, height: 6, borderRadius: '50%', background: isLastNode && isDelivered ? '#16A34A' : '#FF6B00', margin: '4px auto 0' }} />
+                              {!isLastNode && <div style={{ width: 1, height: 16, background: '#E8E8E8', margin: '0 auto' }} />}
+                            </div>
+                            <div><Text style={{ fontSize: 11 }}>{n.description}</Text><Text type="secondary" style={{ fontSize: 10, marginLeft: 6 }}>{(n.time || '').replace('T', ' ').substring(5, 16)} · {n.location || ''}</Text></div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -771,7 +710,7 @@ export default function OrderDetail() {
               <Descriptions.Item label="订单号">{order.orderNo}</Descriptions.Item>
               <Descriptions.Item label="订单类型"><Tag>{BIZ_TYPE_MAP[order.bizType]}</Tag></Descriptions.Item>
               <Descriptions.Item label="时效等级"><Tag color={URGENCY_MAP[order.urgencyLevel].color}>{URGENCY_MAP[order.urgencyLevel].label}</Tag></Descriptions.Item>
-              <Descriptions.Item label="履约方式">{FULFILL_METHOD_MAP[order.fulfillMethod]}</Descriptions.Item>
+              <Descriptions.Item label="订单来源"><Tag>{ORDER_SOURCE_MAP[order.orderSource]}</Tag></Descriptions.Item>
               <Descriptions.Item label="基地来源">{order.baseSource}</Descriptions.Item>
               <Descriptions.Item label="缺件策略">{shortagePolicy ? <Tag color={shortagePolicy === 'SPLIT' ? STATUS_COLORS.normal : '#8C8C8C'}>{shortagePolicy === 'SPLIT' ? '拆分发货' : '整单挂起'}</Tag> : <Text type="secondary">-</Text>}</Descriptions.Item>
             </Descriptions>
@@ -803,8 +742,11 @@ export default function OrderDetail() {
               </Descriptions>
             </Card>
           )}
-          <Card title="操作日志" size="small" style={{ marginBottom: 16 }}>
-            <div>
+          <Card title={`操作日志 (${operationLogs.length}条)`} size="small" style={{ marginBottom: 16 }}>
+            <CollapsibleSection title="" icon={null}
+              summary={`最新: ${operationLogs[0]?.action || '-'} — ${operationLogs[0]?.operator || ''} · ${operationLogs[0]?.time?.replace?.('T', ' ').substring(0, 19) || ''}`}
+              defaultExpanded={false}>
+              <div style={{ paddingTop: 8 }}>
               {operationLogs.map((log, i) => {
                 const dotColor = log.action.includes('异常') ? 'red' : log.action.includes('签收') || log.action.includes('归档') ? 'green' : '#FF6B00';
                 return (
@@ -822,7 +764,8 @@ export default function OrderDetail() {
                   </div>
                 );
               })}
-            </div>
+              </div>
+            </CollapsibleSection>
           </Card>
         </Col>
       </Row>

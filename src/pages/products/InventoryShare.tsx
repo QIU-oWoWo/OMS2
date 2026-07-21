@@ -42,7 +42,7 @@ export default function InventoryShare() {
 
   const columns: ColumnsType<InventoryShareDTO> = [
     { title: '共享方经销商', dataIndex: 'fromDealerName', key: 'fromDealerName', width: 150 },
-    { title: 'SKU明细', key: 'skuSummary', width: 220, render: (_: unknown, r: InventoryShareDTO) => r.items.map((i) => <Tag key={i.skuCode} style={{ fontFamily: 'monospace', fontSize: 11 }}>{i.skuCode}</Tag>) },
+    { title: 'SKU名称', key: 'skuSummary', width: 140, render: (_: unknown, r: InventoryShareDTO) => r.items.map((i) => <Tag key={i.skuCode} style={{ fontSize: 11, marginBottom: 2 }}>{i.skuName}</Tag>) },
     { title: '定价', dataIndex: 'totalAmount', key: 'totalAmount', width: 110, align: 'right', sorter: (a, b) => a.totalAmount - b.totalAmount, render: (v: number) => <span style={{ fontWeight: 500 }}>¥{v.toLocaleString()}</span> },
     { title: '质量认证', key: 'qualityCert', width: 110, align: 'center', render: (_: unknown, r: InventoryShareDTO) => {
       if (r.qualityCertStatus === 'VERIFIED') return <Tag icon={<SafetyCertificateOutlined />} color="success">已认证</Tag>;

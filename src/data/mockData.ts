@@ -123,11 +123,11 @@ function deriveOrderStatus(packages: Package[], shortagePolicy: ShortagePolicy):
 }
 
 /** 根据目标订单状态反向设定包裹状态（用于mock数据确保覆盖所有状态） */
-function setPackageStatusesForTarget(packages: Package[], targetStatus: OrderStatus, policy: ShortagePolicy): void {
+function setPackageStatusesForTarget(packages: Package[], actualTarget: OrderStatus, policy: ShortagePolicy): void {
   const hasOriginal = packages.some((p) => p.packageType === 'ORIGINAL');
   const hasSupplement = packages.some((p) => p.packageType === 'SUPPLEMENT');
 
-  switch (targetStatus) {
+  switch (actualTarget) {
     case 'SCHEDULING':
     case 'PENDING_REVIEW':
       packages.forEach((p) => { p.status = 'PENDING'; });
@@ -185,10 +185,28 @@ function makeSupplierInfo(): SupplierInfo {
   ];
   const s = randomPick(suppliers);
   const arrivalDate = new Date(2026, 6, 16 + s.arrivalDays);
+  const hasTracking = Math.random() > 0.5;
+  const statusRoll = Math.random();
+  let supplierStatus: 'PENDING' | 'SHIPPED' | 'ARRIVED_AT_BASE';
+  if (!hasTracking) {
+    supplierStatus = 'PENDING';
+  } else if (statusRoll > 0.5) {
+    supplierStatus = 'SHIPPED';
+  } else {
+    supplierStatus = 'ARRIVED_AT_BASE';
+  }
+  let shipTime: string | undefined;
+  if (supplierStatus === 'SHIPPED' || supplierStatus === 'ARRIVED_AT_BASE') {
+    const shipDate = new Date(arrivalDate);
+    shipDate.setDate(shipDate.getDate() - randomInt(2, 5));
+    shipTime = formatDateShort(shipDate);
+  }
   return {
     supplierName: s.name,
     expectedArrivalDate: formatDateShort(arrivalDate),
-    trackingNumber: Math.random() > 0.5 ? `SF${String(randomInt(100000000000, 999999999999))}` : undefined,
+    trackingNumber: hasTracking ? `SF${String(randomInt(100000000000, 999999999999))}` : undefined,
+    supplierStatus,
+    shipTime,
   };
 }
 
@@ -306,21 +324,25 @@ export function generateOrders(): OrderDTO[] {
 
   for (let i = 0; i < 30; i++) {
     const dealer = randomPick(DEALERS);
-    const targetStatus = statusDistribution[i % statusDistribution.length];
     const itemsCount = randomInt(1, 5);
-    const bizType = (['REGULAR', 'APPOINTMENT', 'CUSTOM', 'CALL_400', 'REQUISITION'] as const)[i % 5];
+    const bizType = (['DIRECT', 'CUSTOM', 'RESERVE', 'REGULAR'] as const)[i % 4];
+    const orderSource = (['CALL_400', 'REQUISITION', 'YUN_XIAO_TONG'] as const)[i % 3];
+    const isDirect = bizType === 'DIRECT';
+    // 直发订单：供应商→经销商，跳过仓库履约，状态只有审核/运输/签收/完成
+    const directStatuses: OrderStatus[] = ['PENDING_REVIEW', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'];
+    const actualTarget: OrderStatus = isDirect ? directStatuses[Math.floor(i / 4) % directStatuses.length] : statusDistribution[i % statusDistribution.length] as OrderStatus;
     const shippingMethod = (i % 3 === 0) ? 'WITH_VEHICLE' as const : 'STANDALONE' as const;
     const createDate = new Date(2026, 6, randomInt(1, 16), randomInt(8, 18), randomInt(0, 59), randomInt(0, 59));
     const orderNo = `OMS${String(20260716 - randomInt(0, 999)).padStart(6, '0')}${String(i + 1).padStart(4, '0')}`;
 
     // Step 1: 生成行项（OrderItem），每个附 stockStatus
-    const isTerminal = ['ORDER_TERMINATED', 'CANCELLED'].includes(targetStatus);
-    const isException = targetStatus === 'EXCEPTION_HOLD';
-    const needsShortage = ['PICKING', 'PARTIALLY_SHIPPED', 'EXCEPTION_HOLD'].includes(targetStatus) ||
-      (targetStatus === 'READY_TO_SHIP' && i % 3 === 0); // 部分READY_TO_SHIP为HOLD策略
-    const isDeliveredOrCompleted = ['DELIVERED', 'COMPLETED', 'RETURN_PROCESSING'].includes(targetStatus);
-    const isShipped = ['IN_TRANSIT', 'DELIVERED', 'COMPLETED', 'RETURN_PROCESSING'].includes(targetStatus);
-    const isSplit = targetStatus === 'PARTIALLY_SHIPPED';
+    const isTerminal = ['ORDER_TERMINATED', 'CANCELLED'].includes(actualTarget);
+    const isException = actualTarget === 'EXCEPTION_HOLD';
+    const needsShortage = !isDirect && (['PICKING', 'PARTIALLY_SHIPPED', 'EXCEPTION_HOLD'].includes(actualTarget) ||
+      (actualTarget === 'READY_TO_SHIP' && i % 3 === 0));
+    const isDeliveredOrCompleted = ['DELIVERED', 'COMPLETED', 'RETURN_PROCESSING'].includes(actualTarget);
+    const isShipped = ['IN_TRANSIT', 'DELIVERED', 'COMPLETED', 'RETURN_PROCESSING'].includes(actualTarget);
+    const isSplit = actualTarget === 'PARTIALLY_SHIPPED';
 
     const rawItems = randomPickN(YADI_PARTS, itemsCount).map((part) => {
       const qty = randomInt(1, 10);
@@ -348,7 +370,7 @@ export function generateOrders(): OrderDTO[] {
       }
 
       // HOLD策略下的READY_TO_SHIP: 缺货项已补齐
-      if (targetStatus === 'READY_TO_SHIP' && !isSplit && idx === itemsCount - 1 && i % 3 === 0) {
+      if (actualTarget === 'READY_TO_SHIP' && !isSplit && idx === itemsCount - 1 && i % 3 === 0) {
         stockStatus = 'IN_STOCK';
         shortageQty = 0;
         shortagePolicy = 'HOLD';
@@ -372,8 +394,11 @@ export function generateOrders(): OrderDTO[] {
     const hasShortage = lineItems.some((li) => li.stockStatus !== 'IN_STOCK');
     if (!hasShortage) shortagePolicy = 'HOLD';
 
-    // Step 3: 按 shortagePolicy 生成 Package[]
+    // Step 3: 按 shortagePolicy 生成 Package[]（直发订单无包裹）
     const packages: Package[] = [];
+    if (isDirect) {
+      // 直发：供应商→经销商，无仓库包裹
+    } else {
     const pkgId = (suffix: string) => `PKG-${orderNo}-${suffix}`;
 
     if (shortagePolicy === 'SPLIT' && hasShortage) {
@@ -409,9 +434,11 @@ export function generateOrders(): OrderDTO[] {
         shippingMethod,
       });
     }
+    } // end non-DIRECT package creation
 
     // Step 4 & 5: 设定包裹状态并推导订单状态
-    setPackageStatusesForTarget(packages, targetStatus, shortagePolicy);
+    if (!isDirect) {
+    setPackageStatusesForTarget(packages, actualTarget, shortagePolicy);
 
     // 为已发货/已签收包裹填充物流信息
     packages.forEach((pkg) => {
@@ -442,18 +469,21 @@ export function generateOrders(): OrderDTO[] {
         pkg.supplierEstimatedArrival = formatDateShort(new Date(createDate.getTime() + randomInt(2, 5) * 24 * 3600000));
       }
     });
+    } // end if (!isDirect)
 
     // 最终聚合推导（验证一致性）
     // PENDING_REVIEW 的包裹也是 PENDING，deriveOrderStatus 会误推导为 SCHEDULING，
     // 因此 PENDING_REVIEW 直接保留，不参与包裹状态推导
-    const derivedStatus = isTerminal ? targetStatus :
-      targetStatus === 'EXCEPTION_HOLD' ? 'EXCEPTION_HOLD' :
-      targetStatus === 'RETURN_PROCESSING' ? 'RETURN_PROCESSING' :
-      targetStatus === 'PENDING_REVIEW' ? 'PENDING_REVIEW' :
+    // 直发订单无包裹，直接使用 actualTarget
+    const derivedStatus = isDirect ? actualTarget :
+      isTerminal ? actualTarget :
+      actualTarget === 'EXCEPTION_HOLD' ? 'EXCEPTION_HOLD' :
+      actualTarget === 'RETURN_PROCESSING' ? 'RETURN_PROCESSING' :
+      actualTarget === 'PENDING_REVIEW' ? 'PENDING_REVIEW' :
       deriveOrderStatus(packages, shortagePolicy);
 
     const totalAmount = rawItems.reduce((sum, item) => sum + item.subtotal, 0);
-    const shortageFlag = lineItems.some((li) => li.shortageQty > 0);
+    const shortageFlag = isDirect ? false : lineItems.some((li) => li.shortageQty > 0);
     const allItems: OrderItem[] = lineItems.map(({ stockStatus, supplierInfo, belongsToPackageId, ...rest }) => rest);
 
     // 订单级别物流信息（向后兼容）
@@ -465,10 +495,10 @@ export function generateOrders(): OrderDTO[] {
       dealerId: dealer.dealerId,
       dealerName: dealer.dealerName,
       bizType,
-      urgencyLevel: isException ? 'CRITICAL' : randomPick(['NORMAL', 'URGENT', 'CRITICAL'] as const),
-      fulfillMethod: randomPick(['DIRECT_SHIP', 'WAREHOUSE_SHIP'] as const),
+      orderSource,
+      urgencyLevel: randomPick(['NORMAL', 'URGENT'] as const),
       status: derivedStatus,
-      shortagePolicy: hasShortage || isSplit ? shortagePolicy : undefined,
+      shortagePolicy: isDirect ? undefined : (hasShortage || isSplit ? shortagePolicy : undefined),
       packages,
       vinCodes: Array.from({ length: randomInt(1, 3) }, () => randomPick(vins)),
       baseSource: randomPick(bases),
@@ -496,10 +526,25 @@ export function generateOrders(): OrderDTO[] {
 // ========== 生成预约单数据 ==========
 
 export function generateAppointments(orders: OrderDTO[]): AppointmentDTO[] {
-  const statuses = ['PENDING_CONFIRM', 'CONFIRMED', 'EXPIRED', 'CANCELLED', 'EXECUTED'] as const;
-  // 优先使用 APPOINTMENT 类型的订单，确保与订单详情页的 bizType 匹配
-  const matched = orders.filter((o) => o.bizType === 'APPOINTMENT');
-  const pool = matched.length >= 8 ? matched.slice(0, 8) : [...matched, ...orders.filter((o) => o.bizType !== 'APPOINTMENT')];
+  // 优先使用 RESERVE 类型的订单，确保与订单详情页的 bizType 匹配
+  const matched = orders.filter((o) => o.bizType === 'RESERVE');
+  const pool = matched.length >= 8 ? matched.slice(0, 8) : [...matched, ...orders.filter((o) => o.bizType !== 'RESERVE')];
+
+  // 根据订单主流程状态推导预约单状态
+  const deriveAppointStatus = (orderStatus: string): AppointStatus => {
+    switch (orderStatus) {
+      case 'PENDING_REVIEW': return 'PENDING_CONFIRM';
+      case 'SCHEDULING':
+      case 'PICKING':
+      case 'READY_TO_SHIP': return 'CONFIRMED';
+      case 'IN_TRANSIT':
+      case 'DELIVERED':
+      case 'COMPLETED': return 'EXECUTED';
+      case 'ORDER_TERMINATED':
+      case 'CANCELLED': return 'CANCELLED';
+      default: return 'CONFIRMED';
+    }
+  };
 
   return Array.from({ length: 8 }, (_, i) => {
     const order = pool[i] || randomPick(orders);
@@ -512,7 +557,7 @@ export function generateAppointments(orders: OrderDTO[]): AppointmentDTO[] {
       dealerId: order.dealerId,
       dealerName: order.dealerName,
       appointDate: formatDateShort(appointDate),
-      appointStatus: statuses[i % statuses.length],
+      appointStatus: deriveAppointStatus(order.status),
       skuTypes: randomInt(1, 6),
       remark: randomPick(['新品上市前铺货', '季节性备货', '促销活动备货', '经销商周年庆备货', '旺季提前备货', '']),
       createTime: formatDate(createDate),
@@ -591,7 +636,22 @@ export function generateOperationLogs(): OperationLog[] {
 
 export function generateCustomOrders(orders: OrderDTO[]): CustomOrderDTO[] {
   const types = ['MODIFICATION', 'SPECIAL_MATERIAL', 'SIZE_CUSTOM', 'KIT_ASSEMBLY'] as const;
-  const statuses = ['DRAFT', 'TECH_REVIEW', 'QUOTE_PENDING', 'IN_PRODUCTION', 'COMPLETED', 'REJECTED'] as const;
+
+  // 根据订单主流程状态推导定制审批状态
+  const deriveCustomApproval = (orderStatus: string): CustomApprovalStatus => {
+    switch (orderStatus) {
+      case 'PENDING_REVIEW': return 'TECH_REVIEW';
+      case 'SCHEDULING':
+      case 'PICKING': return 'IN_PRODUCTION';
+      case 'READY_TO_SHIP': return 'IN_PRODUCTION';
+      case 'IN_TRANSIT':
+      case 'DELIVERED':
+      case 'COMPLETED': return 'COMPLETED';
+      case 'ORDER_TERMINATED':
+      case 'CANCELLED': return 'REJECTED';
+      default: return 'IN_PRODUCTION';
+    }
+  };
   const specs = [
     '加长型刹车卡钳支架，厚度增加5mm',
     '碳纤维材质前挡泥板，轻量化定制',
@@ -623,7 +683,7 @@ export function generateCustomOrders(orders: OrderDTO[]): CustomOrderDTO[] {
       specDescription: specs[i],
       processRequirement: randomPick(['数控加工+热处理', '3D打印成型', '手工焊接+表面喷塑', 'CNC精密加工+阳极氧化', '']),
       expectFinishDate: formatDateShort(finishDate),
-      approvalStatus: statuses[i % statuses.length],
+      approvalStatus: deriveCustomApproval(order.status),
       quoteAmount: Math.round((materialCost + laborCost) * markupRate * 100) / 100,
       attachments: i % 3 === 0 ? ['drawing_v2.pdf', 'spec_sheet.xlsx'] : [],
       vinCode: order.vinCodes?.[0] || '',
@@ -649,9 +709,9 @@ export function generateCall400Orders(orders: OrderDTO[]): Call400DTO[] {
     { skuCode: 'YD-MR-001', skuName: '后视镜总成' },
     { skuCode: 'YD-CG-001', skuName: '充电器' },
   ];
-  // 优先使用 CALL_400 类型的订单，确保与订单详情页的 bizType 匹配
-  const matched = orders.filter((o) => o.bizType === 'CALL_400');
-  const pool = matched.length >= 8 ? matched.slice(0, 8) : [...matched, ...orders.filter((o) => o.bizType !== 'CALL_400')];
+  // 优先使用 orderSource 为 CALL_400 的订单
+  const matched = orders.filter((o) => o.orderSource === 'CALL_400');
+  const pool = matched.length >= 8 ? matched.slice(0, 8) : [...matched, ...orders.filter((o) => o.orderSource !== 'CALL_400')];
 
   return Array.from({ length: 8 }, (_, i) => {
     const order = pool[i] || randomPick(orders);

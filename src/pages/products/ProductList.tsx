@@ -5,8 +5,8 @@ import {
   Drawer, Switch, InputNumber, List, Divider, Alert, Empty, Collapse, Popconfirm,
 } from 'antd';
 import {
-  SearchOutlined, ReloadOutlined, PlusOutlined, DownloadOutlined,
-  UploadOutlined, ArrowUpOutlined, ArrowDownOutlined, DollarOutlined, SettingOutlined,
+  SearchOutlined, ReloadOutlined, DownloadOutlined,
+  ArrowUpOutlined, ArrowDownOutlined, DollarOutlined, SettingOutlined,
   ThunderboltOutlined, EyeInvisibleOutlined, VerticalAlignTopOutlined, SortAscendingOutlined,
   SwapOutlined, DeleteOutlined, PlusCircleOutlined, InfoCircleOutlined,
 } from '@ant-design/icons';
@@ -393,8 +393,6 @@ export default function ProductList() {
         <Title level={4} style={{ margin: 0 }}>商品管理</Title>
         <Space>
           <Button icon={<ReloadOutlined />} onClick={() => setFilters({ skuCode: '', skuName: '', category: '', statuses: [], baseSource: '', tags: [] })}>重置</Button>
-          <Button icon={<UploadOutlined />}>批量导入</Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => navigate('/products/new')}>新增商品</Button>
         </Space>
       </div>
 
@@ -470,6 +468,7 @@ export default function ProductList() {
             <span>已选择 <span style={{ color: '#FF6B00', fontWeight: 500 }}>{selectedRowKeys.length}</span> 个商品</span>
             <Button size="small" icon={<ArrowUpOutlined />} onClick={() => handleBatchAction('批量上架')}>批量上架</Button>
             <Button size="small" icon={<ArrowDownOutlined />} onClick={() => handleBatchAction('批量下架')}>批量下架</Button>
+            <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleBatchAction('批量淘汰')}>批量淘汰</Button>
             <Button size="small" icon={<DollarOutlined />} onClick={() => handleBatchAction('批量调价')}>批量调价</Button>
             <Button size="small" icon={<DownloadOutlined />} onClick={() => handleBatchAction('导出Excel')}>导出 Excel</Button>
             <a onClick={() => setSelectedRowKeys([])} style={{ color: '#8C8C8C' }}>取消选择</a>

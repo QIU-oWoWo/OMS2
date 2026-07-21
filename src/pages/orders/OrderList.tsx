@@ -15,7 +15,7 @@ import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { mockOrders, mockDeliveryNotes } from '../../data/mockData';
 import {
-  ORDER_STATUS_MAP, ORDER_STATUS_COLOR_MAP, BIZ_TYPE_MAP, URGENCY_MAP, FULFILL_METHOD_MAP, ORDER_FLOW_NODES,
+  ORDER_STATUS_MAP, ORDER_STATUS_COLOR_MAP, BIZ_TYPE_MAP, ORDER_SOURCE_MAP, URGENCY_MAP, ORDER_FLOW_NODES,
 } from '../../types';
 import type { OrderDTO, OrderStatus, OrderFlowNode } from '../../types';
 
@@ -26,26 +26,15 @@ const { Panel } = Collapse;
 const STATUS_TABS: { key: OrderStatus | 'ALL'; label: string }[] = [
   { key: 'ALL', label: '全部' },
   { key: 'PENDING_REVIEW', label: '待审核' },
-  { key: 'SCHEDULING', label: '排单中' },
-  { key: 'PICKING', label: '拣货中' },
-  { key: 'READY_TO_SHIP', label: '待发货' },
-  { key: 'PARTIALLY_SHIPPED', label: '部分发货' },
-  { key: 'IN_TRANSIT', label: '运输中' },
-  { key: 'DELIVERED', label: '已签收' },
-  { key: 'COMPLETED', label: '已完成' },
   { key: 'EXCEPTION_HOLD', label: '异常挂起' },
   { key: 'RETURN_PROCESSING', label: '退货处理' },
-  { key: 'ORDER_TERMINATED', label: '已终止' },
-  { key: 'CANCELLED', label: '已取消' },
-  { key: 'EXCEPTION', label: '异常(旧)' },
 ];
 
 const ALL_COLUMNS = [
   { key: 'orderNo', title: '订单号', fixed: true }, { key: 'dealerName', title: '经销商' },
-  { key: 'bizType', title: '订单类型' }, { key: 'urgencyLevel', title: '时效等级' },
-  { key: 'fulfillMethod', title: '履约方式' }, { key: 'skuCount', title: 'SKU数量' },
-  { key: 'totalAmount', title: '总金额' }, { key: 'createTime', title: '下单时间' },
-  { key: 'status', title: '当前状态' }, { key: 'vinCode', title: 'VIN码' },
+  { key: 'bizType', title: '订单类型' }, { key: 'orderSource', title: '订单来源' },
+  { key: 'urgencyLevel', title: '时效等级' }, { key: 'totalAmount', title: '总金额' },
+  { key: 'createTime', title: '下单时间' }, { key: 'status', title: '当前状态' },
   { key: 'baseSource', title: '基地来源' }, { key: 'shortageFlag', title: '缺件' },
 ];
 
@@ -74,8 +63,8 @@ export default function OrderList() {
   const [activeDrawer, setActiveDrawer] = useState<ConfigKey | null>(null);
   const [filters, setFilters] = useState({
     orderNo: '', dealerName: '', dateRange: null as [dayjs.Dayjs, dayjs.Dayjs] | null,
-    bizTypes: [] as string[], urgencyLevels: [] as string[], fulfillMethods: [] as string[],
-    baseSource: '', vinCode: '', shortageOnly: false,
+    orderSources: [] as string[], urgencyLevels: [] as string[],
+    baseSource: '', shortageOnly: false, orderStatuses: [] as string[],
   });
 
   // ---- 各配置状态 ----
@@ -125,12 +114,11 @@ export default function OrderList() {
     if (filters.orderNo) result = result.filter((o) => o.orderNo.includes(filters.orderNo.toUpperCase()) || o.orderNo.includes(filters.orderNo));
     if (filters.dealerName) result = result.filter((o) => o.dealerName.includes(filters.dealerName));
     if (filters.dateRange) { const [s, e] = filters.dateRange; result = result.filter((o) => dayjs(o.createTime).isAfter(s.startOf('day')) && dayjs(o.createTime).isBefore(e.endOf('day'))); }
-    if (filters.bizTypes.length > 0) result = result.filter((o) => filters.bizTypes.includes(o.bizType));
+    if (filters.orderSources.length > 0) result = result.filter((o) => filters.orderSources.includes(o.orderSource));
     if (filters.urgencyLevels.length > 0) result = result.filter((o) => filters.urgencyLevels.includes(o.urgencyLevel));
-    if (filters.fulfillMethods.length > 0) result = result.filter((o) => filters.fulfillMethods.includes(o.fulfillMethod));
     if (filters.baseSource) result = result.filter((o) => o.baseSource === filters.baseSource);
-    if (filters.vinCode) result = result.filter((o) => o.vinCodes.some((v) => v.includes(filters.vinCode)));
     if (filters.shortageOnly) result = result.filter((o) => o.shortageFlag);
+    if (filters.orderStatuses.length > 0) result = result.filter((o) => filters.orderStatuses.includes(o.status));
     return result;
   }, [activeTab, filters, searchKeyword]);
 
@@ -164,14 +152,12 @@ export default function OrderList() {
     const all: ColumnsType<OrderDTO> = [
       { title: '订单号', dataIndex: 'orderNo', key: 'orderNo', fixed: 'left' as const, width: 180, sorter: (a, b) => a.orderNo.localeCompare(b.orderNo), render: (no: string) => (<a onClick={(e) => { e.stopPropagation(); navigate(`/orders/${no}`); }} style={{ color: '#FF6B00', fontWeight: 500 }}>{no}</a>) },
       { title: '经销商', dataIndex: 'dealerName', key: 'dealerName', width: 160, sorter: (a, b) => a.dealerName.localeCompare(b.dealerName) },
-      { title: '订单类型', dataIndex: 'bizType', key: 'bizType', width: 90, render: (type: string) => { const colors: Record<string, string> = { REGULAR: '#16A34A', APPOINTMENT: '#0284C7', CUSTOM: '#7C3AED', CALL_400: '#16A34A', REQUISITION: '#8C8C8C' }; return <Tag color={colors[type] || '#8C8C8C'}>{BIZ_TYPE_MAP[type as keyof typeof BIZ_TYPE_MAP]}</Tag>; } },
-      { title: '时效等级', dataIndex: 'urgencyLevel', key: 'urgencyLevel', width: 90, render: (level: string) => { const info = URGENCY_MAP[level as keyof typeof URGENCY_MAP]; return <Tag color={info?.color}>{info?.label}</Tag>; } },
-      { title: '履约方式', dataIndex: 'fulfillMethod', key: 'fulfillMethod', width: 90, render: (m: string) => FULFILL_METHOD_MAP[m as keyof typeof FULFILL_METHOD_MAP] },
-      { title: 'SKU数量', dataIndex: 'skuCount', key: 'skuCount', width: 90, align: 'center' as const, sorter: (a, b) => a.skuCount - b.skuCount },
+      { title: '订单类型', dataIndex: 'bizType', key: 'bizType', width: 80, render: (type: string) => { const colors: Record<string, string> = { DIRECT: '#0284C7', CUSTOM: '#7C3AED', RESERVE: '#D97706', REGULAR: '#16A34A' }; return <Tag color={colors[type] || '#8C8C8C'}>{BIZ_TYPE_MAP[type as keyof typeof BIZ_TYPE_MAP] || type}</Tag>; } },
+      { title: '订单来源', dataIndex: 'orderSource', key: 'orderSource', width: 90, render: (src: string) => { const colors: Record<string, string> = { CALL_400: '#16A34A', REQUISITION: '#8C8C8C', YUN_XIAO_TONG: '#0284C7' }; return <Tag color={colors[src] || '#8C8C8C'}>{ORDER_SOURCE_MAP[src as keyof typeof ORDER_SOURCE_MAP] || src}</Tag>; } },
+      { title: '时效等级', dataIndex: 'urgencyLevel', key: 'urgencyLevel', width: 80, render: (level: string) => { const info = URGENCY_MAP[level as keyof typeof URGENCY_MAP]; return <Tag color={info?.color}>{info?.label}</Tag>; } },
       { title: '总金额', dataIndex: 'totalAmount', key: 'totalAmount', width: 120, align: 'right' as const, sorter: (a, b) => a.totalAmount - b.totalAmount, render: (amount: number) => (<span style={{ fontWeight: 500 }}>¥{amount.toLocaleString()}</span>) },
       { title: '下单时间', dataIndex: 'createTime', key: 'createTime', width: 160, sorter: (a, b) => a.createTime.localeCompare(b.createTime), render: (t: string) => t.replace('T', ' ').substring(0, 16) },
       { title: '当前状态', dataIndex: 'status', key: 'status', width: 100, render: (s: OrderStatus) => (<Tag color={ORDER_STATUS_COLOR_MAP[s]}>{ORDER_STATUS_MAP[s]}</Tag>) },
-      { title: 'VIN码', key: 'vinCode', width: 170, render: (_: unknown, record: OrderDTO) => (<Tooltip title={record.vinCodes.join(', ')}><span style={{ fontFamily: 'monospace', fontSize: 12 }}>{record.vinCodes[0]}{record.vinCodes.length > 1 ? <Tag style={{ marginLeft: 4, fontSize: 10 }}>+{record.vinCodes.length - 1}</Tag> : null}</span></Tooltip>) },
       { title: '基地来源', dataIndex: 'baseSource', key: 'baseSource', width: 100 },
       { title: '缺件', dataIndex: 'shortageFlag', key: 'shortageFlag', width: 60, align: 'center' as const, render: (flag: boolean) => flag ? <Tooltip title="有缺件"><ExclamationCircleOutlined style={{ color: '#E11D48', fontSize: 16 }} /></Tooltip> : null },
       { title: '操作', key: 'actions', fixed: 'right' as const, width: 120, render: (_: unknown, record: OrderDTO) => (<Space size="small"><a onClick={(e) => { e.stopPropagation(); navigate(`/orders/${record.orderNo}`); }} style={{ color: '#FF6B00' }}>查看</a><Dropdown menu={{ items: [{ key: 'audit', label: '审核', icon: <CheckCircleOutlined /> }, { key: 'schedule', label: '排单', icon: <CheckCircleOutlined /> }, { key: 'export', label: '导出', icon: <DownloadOutlined /> }, { key: 'print', label: '打印', icon: <PrinterOutlined /> }, { key: 'expedite', label: '加急', icon: <ThunderboltOutlined /> }] }} trigger={['click']}><a onClick={(e) => e.stopPropagation()}><MoreOutlined /></a></Dropdown></Space>) },
@@ -258,7 +244,7 @@ export default function OrderList() {
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Title level={4} style={{ margin: 0 }}>订单管理</Title>
-        <Button icon={<ReloadOutlined />} onClick={() => setFilters({ orderNo: '', dealerName: '', dateRange: null, bizTypes: [], urgencyLevels: [], fulfillMethods: [], baseSource: '', vinCode: '', shortageOnly: false })}>重置</Button>
+        <Button icon={<ReloadOutlined />} onClick={() => setFilters({ orderNo: '', dealerName: '', dateRange: null, orderSources: [], urgencyLevels: [], baseSource: '', shortageOnly: false, orderStatuses: [] })}>重置</Button>
       </div>
 
       {/* ========== 订单配置入口 ========== */}
@@ -302,10 +288,11 @@ export default function OrderList() {
         <Card size="small" style={{ marginBottom: 16 }}>
           <Row gutter={[16, 12]}>
             <Col span={4}><Input placeholder="订单号搜索" prefix={<SearchOutlined />} value={filters.orderNo} onChange={(e) => setFilters((f) => ({ ...f, orderNo: e.target.value }))} allowClear /></Col>
-            <Col span={4}><Input placeholder="经销商搜索" value={filters.dealerName} onChange={(e) => setFilters((f) => ({ ...f, dealerName: e.target.value }))} allowClear /></Col>
-            <Col span={5}><RangePicker style={{ width: '100%' }} placeholder={['开始日期', '结束日期']} value={filters.dateRange} onChange={(dates) => setFilters((f) => ({ ...f, dateRange: dates as [dayjs.Dayjs, dayjs.Dayjs] | null }))} /></Col>
-            <Col span={4}><Select mode="multiple" placeholder="订单类型" style={{ width: '100%' }} value={filters.bizTypes} onChange={(vals) => setFilters((f) => ({ ...f, bizTypes: vals }))} options={Object.entries(BIZ_TYPE_MAP).map(([k, v]) => ({ value: k, label: v }))} maxTagCount={1} /></Col>
-            <Col span={3}><Select mode="multiple" placeholder="时效等级" style={{ width: '100%' }} value={filters.urgencyLevels} onChange={(vals) => setFilters((f) => ({ ...f, urgencyLevels: vals }))} options={[{ value: 'CRITICAL', label: '特急' }, { value: 'URGENT', label: '紧急' }, { value: 'NORMAL', label: '普通' }]} maxTagCount={1} /></Col>
+            <Col span={3}><Input placeholder="经销商搜索" value={filters.dealerName} onChange={(e) => setFilters((f) => ({ ...f, dealerName: e.target.value }))} allowClear /></Col>
+            <Col span={4}><RangePicker style={{ width: '100%' }} placeholder={['开始日期', '结束日期']} value={filters.dateRange} onChange={(dates) => setFilters((f) => ({ ...f, dateRange: dates as [dayjs.Dayjs, dayjs.Dayjs] | null }))} /></Col>
+            <Col span={3}><Select mode="multiple" placeholder="订单来源" style={{ width: '100%' }} value={filters.orderSources} onChange={(vals) => setFilters((f) => ({ ...f, orderSources: vals }))} options={Object.entries(ORDER_SOURCE_MAP).map(([k, v]) => ({ value: k, label: v }))} maxTagCount={1} /></Col>
+            <Col span={3}><Select mode="multiple" placeholder="时效等级" style={{ width: '100%' }} value={filters.urgencyLevels} onChange={(vals) => setFilters((f) => ({ ...f, urgencyLevels: vals }))} options={[{ value: 'URGENT', label: '紧急' }, { value: 'NORMAL', label: '普通' }]} maxTagCount={1} /></Col>
+            <Col span={3}><Select mode="multiple" placeholder="订单状态" style={{ width: '100%' }} value={filters.orderStatuses} onChange={(vals) => setFilters((f) => ({ ...f, orderStatuses: vals }))} options={Object.entries(ORDER_STATUS_MAP).map(([k, v]) => ({ value: k, label: v }))} maxTagCount={1} /></Col>
             <Col span={2}><Space><span style={{ fontSize: 13, color: '#595959' }}>仅缺件</span><Switch size="small" checked={filters.shortageOnly} onChange={(v) => setFilters((f) => ({ ...f, shortageOnly: v }))} /></Space></Col>
             <Col span={2}><Button onClick={() => setShowFilters(false)} icon={<FilterOutlined />}>收起</Button></Col>
           </Row>
