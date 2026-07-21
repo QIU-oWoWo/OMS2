@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Descriptions, Table, Tag, Space, Button, Typography, Row, Col, Breadcrumb, Divider, Modal, message } from 'antd';
-import { ArrowLeftOutlined, CarOutlined, InboxOutlined, ExclamationCircleOutlined, TruckOutlined, SplitCellsOutlined, DownOutlined, UpOutlined, ShoppingCartOutlined, SendOutlined, CheckCircleFilled, CalendarOutlined, CheckCircleOutlined, CloseCircleOutlined, PaperClipOutlined, FileProtectOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, CarOutlined, InboxOutlined, ExclamationCircleOutlined, TruckOutlined, SplitCellsOutlined, DownOutlined, UpOutlined, ShoppingCartOutlined, SendOutlined, CheckCircleFilled, CalendarOutlined, CheckCircleOutlined, CloseCircleOutlined, PaperClipOutlined, FileProtectOutlined, AppstoreOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { mockOrders, mockDeliveryNotes, getOperationLogs, mockExceptions, getSplitShipmentData, getOrderParcels, mockAppointments, mockCustomOrders, mockCall400Orders } from '../../data/mockData';
 import { ORDER_STATUS_MAP, ORDER_STATUS_COLOR_MAP, BIZ_TYPE_MAP, ORDER_SOURCE_MAP, URGENCY_MAP, EXCEPTION_TYPE_MAP, EXCEPTION_STATUS_MAP, SUPPLIER_STATUS_MAP, STOCK_STATUS_MAP, PACKAGE_STATUS_MAP, STATUS_COLORS, ORDER_FLOW_NODES, STATUS_TO_FLOW_NODE, APPOINT_STATUS_MAP, CUSTOM_TYPE_MAP, CUSTOM_APPROVAL_MAP, APPLY_REASON_MAP, FREE_TYPE_MAP, CALL400_APPROVAL_MAP } from '../../types';
@@ -147,6 +147,7 @@ export default function OrderDetail() {
   const customOrder = orderBizType === 'CUSTOM' ? mockCustomOrders.find((c) => c.orderNo === orderNo) : null;
   const call400Order = order.orderSource === 'CALL_400' ? mockCall400Orders.find((c) => c.originOrderNo === orderNo) : null;
   const isSpecialType = orderBizType === 'RESERVE' || orderBizType === 'CUSTOM';
+  const hasAddressChange = displayStatus === 'PENDING_REVIEW' && !!order.addressChangeRequest;
 
   const displayStatus = localStatus || order.status;
   const isPendingReview = displayStatus === 'PENDING_REVIEW';
@@ -557,6 +558,81 @@ export default function OrderDetail() {
         </Card>
       )}
 
+      {/* ========== 地址修改申请审核模块 ========== */}
+      {hasAddressChange && order.addressChangeRequest && (
+        <Card
+          style={{
+            marginBottom: 16,
+            borderLeft: `4px solid ${isPendingReview ? '#F59E0B' : '#8C8C8C'}`,
+          }}
+          title={
+            <Space>
+              <EnvironmentOutlined style={{ color: '#F59E0B' }} />
+              <span>地址修改申请</span>
+              <Tag color={isPendingReview ? '#F59E0B' : ORDER_STATUS_COLOR_MAP[displayStatus]}>
+                {isPendingReview ? '待审核' : ORDER_STATUS_MAP[displayStatus]}
+              </Tag>
+            </Space>
+          }
+          extra={
+            <Space>
+              {isPendingReview ? (
+                <>
+                  <Button type="primary" size="small" icon={<CheckCircleOutlined />} onClick={() => {
+                    Modal.confirm({
+                      title: '审核通过（地址修改）',
+                      content: `确认通过订单 ${order.orderNo} 的地址修改申请？通过后订单将使用新地址进入排单阶段。`,
+                      okText: '确认通过', cancelText: '取消',
+                      onOk: () => { setLocalStatus('SCHEDULING'); message.success('地址修改申请已通过，订单进入排单阶段'); },
+                    });
+                  }}>审核通过</Button>
+                  <Button size="small" danger icon={<CloseCircleOutlined />} onClick={() => {
+                    Modal.confirm({
+                      title: '审核拒绝（地址修改）',
+                      content: `确认拒绝订单 ${order.orderNo} 的地址修改申请？拒绝后订单将终止。`,
+                      okText: '确认拒绝', okButtonProps: { danger: true }, cancelText: '取消',
+                      onOk: () => { setLocalStatus('ORDER_TERMINATED'); message.success('地址修改申请已拒绝，订单终止'); },
+                    });
+                  }}>审核拒绝</Button>
+                  <Button size="small" danger icon={<CloseCircleOutlined />} onClick={() => {
+                    Modal.confirm({
+                      title: '终止订单',
+                      content: `确认终止订单 ${order.orderNo}？终止后订单将不再继续履约。`,
+                      okText: '确认终止', okButtonProps: { danger: true }, cancelText: '取消',
+                      onOk: () => { setLocalStatus('ORDER_TERMINATED'); message.success('订单已终止'); },
+                    });
+                  }}>终止订单</Button>
+                </>
+              ) : (
+                <Button size="small" danger icon={<CloseCircleOutlined />} onClick={() => {
+                  Modal.confirm({
+                    title: '终止订单',
+                    content: `确认终止订单 ${order.orderNo}？终止后订单将不再继续履约。`,
+                    okText: '确认终止', okButtonProps: { danger: true }, cancelText: '取消',
+                    onOk: () => { setLocalStatus('ORDER_TERMINATED'); message.success('订单已终止'); },
+                  });
+                }}>终止订单</Button>
+              )}
+            </Space>
+          }
+        >
+          <Descriptions column={2} size="small" colon={false} bordered>
+            <Descriptions.Item label="旧收货人" span={1}>{order.addressChangeRequest.oldName}</Descriptions.Item>
+            <Descriptions.Item label="新收货人" span={1}><Text strong>{order.addressChangeRequest.newName}</Text></Descriptions.Item>
+            <Descriptions.Item label="旧电话" span={1}>{order.addressChangeRequest.oldPhone}</Descriptions.Item>
+            <Descriptions.Item label="新电话" span={1}><Text strong>{order.addressChangeRequest.newPhone}</Text></Descriptions.Item>
+            <Descriptions.Item label="旧地址" span={1}>
+              <Text type="secondary">{order.addressChangeRequest.oldProvince} {order.addressChangeRequest.oldCity} {order.addressChangeRequest.oldDistrict} {order.addressChangeRequest.oldAddress}</Text>
+            </Descriptions.Item>
+            <Descriptions.Item label="新地址" span={1}>
+              <Text strong>{order.addressChangeRequest.newProvince} {order.addressChangeRequest.newCity} {order.addressChangeRequest.newDistrict} {order.addressChangeRequest.newAddress}</Text>
+            </Descriptions.Item>
+            <Descriptions.Item label="申请时间" span={1}>{order.addressChangeRequest.requestTime.replace('T', ' ').substring(0, 16)}</Descriptions.Item>
+            <Descriptions.Item label="修改原因" span={1}><Text style={{ color: '#F59E0B' }}>{order.addressChangeRequest.reason}</Text></Descriptions.Item>
+          </Descriptions>
+        </Card>
+      )}
+
       {/* ========== 包裹列表 ========== */}
       <Card
         title={<Space><InboxOutlined style={{ color: '#FF6B00' }} /><span>包裹列表</span></Space>}
@@ -732,7 +808,11 @@ export default function OrderDetail() {
               ))}
             </Card>
           )}
-          {deliveryNote && (
+          {isDirect ? (
+            <Card title="电子交货单" size="small" style={{ marginBottom: 16, borderLeft: '3px solid #FF6B00' }}>
+              <Text style={{ fontSize: 14, color: '#FF6B00' }}>供应商直发</Text>
+            </Card>
+          ) : deliveryNote ? (
             <Card title="电子交货单" size="small" style={{ marginBottom: 16, borderLeft: '3px solid #FF6B00' }}>
               <Descriptions column={1} size="small" colon={false}>
                 <Descriptions.Item label="交货单号"><span style={{ fontFamily: 'monospace' }}>{deliveryNote.noteNo}</span></Descriptions.Item>
@@ -741,7 +821,7 @@ export default function OrderDetail() {
                 <Descriptions.Item label="总件数">{deliveryNote.totalQty} 件</Descriptions.Item>
               </Descriptions>
             </Card>
-          )}
+          ) : null}
           <Card title={`操作日志 (${operationLogs.length}条)`} size="small" style={{ marginBottom: 16 }}>
             <CollapsibleSection title="" icon={null}
               summary={`最新: ${operationLogs[0]?.action || '-'} — ${operationLogs[0]?.operator || ''} · ${operationLogs[0]?.time?.replace?.('T', ' ').substring(0, 19) || ''}`}

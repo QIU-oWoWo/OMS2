@@ -2,7 +2,7 @@ import type {
   OrderDTO, AppointmentDTO, ExceptionDTO, OperationLog,
   CustomOrderDTO, Call400DTO, TrackingDTO, TrackingNode, ProductDTO,
   TrackStatus, InventoryShareDTO, ProductTag, SplitShipmentData, SupplierLogisticsStatus,
-  LineItem, Package, StockStatus, ShortagePolicy, PackageStatus, SupplierInfo,
+  LineItem, Package, StockStatus, ShortagePolicy, PackageStatus, SupplierInfo, AddressChangeRequest,
 } from '../types';
 
 // ========== 雅迪配件商品池 ==========
@@ -321,6 +321,7 @@ export function generateOrders(): OrderDTO[] {
   ];
 
   const orders: OrderDTO[] = [];
+  let pendingReviewCount = 0;
 
   for (let i = 0; i < 30; i++) {
     const dealer = randomPick(DEALERS);
@@ -490,6 +491,30 @@ export function generateOrders(): OrderDTO[] {
     const shippedPkgs = packages.filter((p) => p.trackingNo);
     const primaryPkg = shippedPkgs[0];
 
+    // 前2个待审核订单添加地址修改申请
+    let addressChangeRequest: AddressChangeRequest | undefined;
+    if (actualTarget === 'PENDING_REVIEW' && pendingReviewCount < 2) {
+      pendingReviewCount++;
+      const oldDealer = DEALERS[(DEALERS.indexOf(dealer) + 1) % DEALERS.length];
+      const reasons = ['经销商仓库搬迁，需更新收货地址', '门店地址变更，新址已确认'];
+      addressChangeRequest = {
+        oldProvince: oldDealer.province,
+        oldCity: oldDealer.city,
+        oldDistrict: oldDealer.district,
+        oldAddress: `${oldDealer.district}雅迪大道${randomInt(1, 200)}号`,
+        oldName: `${randomPick(['张', '李', '王', '赵', '陈', '刘'])}${randomPick(['伟', '强', '明', '华', '军', '磊'])}`,
+        oldPhone: `1${randomInt(30, 99)}${String(randomInt(10000000, 99999999))}`,
+        newProvince: dealer.province,
+        newCity: dealer.city,
+        newDistrict: dealer.district,
+        newAddress: `${dealer.district}雅迪大道${randomInt(1, 200)}号`,
+        newName: `${randomPick(['张', '李', '王', '赵', '陈', '刘'])}${randomPick(['伟', '强', '明', '华', '军', '磊'])}`,
+        newPhone: `1${randomInt(30, 99)}${String(randomInt(10000000, 99999999))}`,
+        requestTime: formatDate(createDate),
+        reason: reasons[pendingReviewCount - 1],
+      };
+    }
+
     orders.push({
       orderNo,
       dealerId: dealer.dealerId,
@@ -517,6 +542,7 @@ export function generateOrders(): OrderDTO[] {
       logisticsCompany: primaryPkg?.logisticsCompany,
       shippingMethod,
       linkedPlanNo: undefined,
+      addressChangeRequest,
     });
   }
 
@@ -869,7 +895,7 @@ export const mockProducts = generateProducts();
 // ========== 生成电子交货单数据 ==========
 
 export const mockDeliveryNotes = mockOrders
-  .filter((o) => ['READY_TO_SHIP', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(o.status))
+  .filter((o) => ['READY_TO_SHIP', 'IN_TRANSIT', 'DELIVERED', 'COMPLETED'].includes(o.status) && o.bizType !== 'DIRECT')
   .slice(0, 8)
   .map((order, i) => ({
     noteNo: `DN-202607${String(i + 1).padStart(4, '0')}`,

@@ -106,6 +106,27 @@ export interface OrderDTO {
   logisticsCompany?: string;
   shippingMethod: 'WITH_VEHICLE' | 'STANDALONE';
   linkedPlanNo?: string;
+  /** 地址修改申请（待审核状态下可能存在） */
+  addressChangeRequest?: AddressChangeRequest;
+}
+
+// ========== 地址修改申请 ==========
+
+export interface AddressChangeRequest {
+  oldProvince: string;
+  oldCity: string;
+  oldDistrict: string;
+  oldAddress: string;
+  oldName: string;
+  oldPhone: string;
+  newProvince: string;
+  newCity: string;
+  newDistrict: string;
+  newAddress: string;
+  newName: string;
+  newPhone: string;
+  requestTime: string;
+  reason: string;
 }
 
 // ========== 预约单相关类型 ==========
