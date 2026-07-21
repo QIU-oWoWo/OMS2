@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Card, Tabs, Table, Input, Select, DatePicker, Button, Space, Tag, Badge,
   Switch, Tooltip, Row, Col, Typography, Dropdown, Checkbox, message, Modal,
-  Drawer, InputNumber, Divider, List, Alert, Collapse,
+  Drawer, InputNumber, Divider, List, Alert, Collapse, Form,
 } from 'antd';
 import {
   SearchOutlined, DownloadOutlined, PrinterOutlined, FilterOutlined,
@@ -61,6 +61,8 @@ export default function OrderList() {
   const [showFilters, setShowFilters] = useState(true);
   const [visibleColumns, setVisibleColumns] = useState(ALL_COLUMNS.map((c) => c.key));
   const [activeDrawer, setActiveDrawer] = useState<ConfigKey | null>(null);
+  const [newOrderOpen, setNewOrderOpen] = useState(false);
+  const [newOrderForm] = Form.useForm();
   const [filters, setFilters] = useState({
     orderNo: '', dealerName: '', dateRange: null as [dayjs.Dayjs, dayjs.Dayjs] | null,
     orderSources: [] as string[], urgencyLevels: [] as string[],
@@ -150,17 +152,17 @@ export default function OrderList() {
 
   const columns: ColumnsType<OrderDTO> = useMemo(() => {
     const all: ColumnsType<OrderDTO> = [
-      { title: '订单号', dataIndex: 'orderNo', key: 'orderNo', fixed: 'left' as const, width: 180, sorter: (a, b) => a.orderNo.localeCompare(b.orderNo), render: (no: string) => (<a onClick={(e) => { e.stopPropagation(); navigate(`/orders/${no}`); }} style={{ color: '#FF6B00', fontWeight: 500 }}>{no}</a>) },
-      { title: '经销商', dataIndex: 'dealerName', key: 'dealerName', width: 160, sorter: (a, b) => a.dealerName.localeCompare(b.dealerName) },
-      { title: '订单类型', dataIndex: 'bizType', key: 'bizType', width: 80, render: (type: string) => { const colors: Record<string, string> = { DIRECT: '#0284C7', CUSTOM: '#7C3AED', RESERVE: '#D97706', REGULAR: '#16A34A' }; return <Tag color={colors[type] || '#8C8C8C'}>{BIZ_TYPE_MAP[type as keyof typeof BIZ_TYPE_MAP] || type}</Tag>; } },
-      { title: '订单来源', dataIndex: 'orderSource', key: 'orderSource', width: 90, render: (src: string) => { const colors: Record<string, string> = { CALL_400: '#16A34A', REQUISITION: '#8C8C8C', YUN_XIAO_TONG: '#0284C7' }; return <Tag color={colors[src] || '#8C8C8C'}>{ORDER_SOURCE_MAP[src as keyof typeof ORDER_SOURCE_MAP] || src}</Tag>; } },
-      { title: '时效等级', dataIndex: 'urgencyLevel', key: 'urgencyLevel', width: 80, render: (level: string) => { const info = URGENCY_MAP[level as keyof typeof URGENCY_MAP]; return <Tag color={info?.color}>{info?.label}</Tag>; } },
-      { title: '总金额', dataIndex: 'totalAmount', key: 'totalAmount', width: 120, align: 'right' as const, sorter: (a, b) => a.totalAmount - b.totalAmount, render: (amount: number) => (<span style={{ fontWeight: 500 }}>¥{amount.toLocaleString()}</span>) },
-      { title: '下单时间', dataIndex: 'createTime', key: 'createTime', width: 160, sorter: (a, b) => a.createTime.localeCompare(b.createTime), render: (t: string) => t.replace('T', ' ').substring(0, 16) },
-      { title: '当前状态', dataIndex: 'status', key: 'status', width: 100, render: (s: OrderStatus) => (<Tag color={ORDER_STATUS_COLOR_MAP[s]}>{ORDER_STATUS_MAP[s]}</Tag>) },
-      { title: '基地来源', dataIndex: 'baseSource', key: 'baseSource', width: 100 },
-      { title: '缺件', dataIndex: 'shortageFlag', key: 'shortageFlag', width: 60, align: 'center' as const, render: (flag: boolean) => flag ? <Tooltip title="有缺件"><ExclamationCircleOutlined style={{ color: '#E11D48', fontSize: 16 }} /></Tooltip> : null },
-      { title: '操作', key: 'actions', fixed: 'right' as const, width: 120, render: (_: unknown, record: OrderDTO) => (<Space size="small"><a onClick={(e) => { e.stopPropagation(); navigate(`/orders/${record.orderNo}`); }} style={{ color: '#FF6B00' }}>查看</a><Dropdown menu={{ items: [{ key: 'audit', label: '审核', icon: <CheckCircleOutlined /> }, { key: 'schedule', label: '排单', icon: <CheckCircleOutlined /> }, { key: 'export', label: '导出', icon: <DownloadOutlined /> }, { key: 'print', label: '打印', icon: <PrinterOutlined /> }, { key: 'expedite', label: '加急', icon: <ThunderboltOutlined /> }] }} trigger={['click']}><a onClick={(e) => e.stopPropagation()}><MoreOutlined /></a></Dropdown></Space>) },
+      { title: '订单号', dataIndex: 'orderNo', key: 'orderNo', fixed: 'left' as const, width: 160, sorter: (a, b) => a.orderNo.localeCompare(b.orderNo), render: (no: string) => (<a onClick={(e) => { e.stopPropagation(); navigate(`/orders/${no}`); }} style={{ color: '#FF6B00', fontWeight: 500 }}>{no}</a>) },
+      { title: '经销商', dataIndex: 'dealerName', key: 'dealerName', width: 140, ellipsis: true, sorter: (a, b) => a.dealerName.localeCompare(b.dealerName) },
+      { title: '订单类型', dataIndex: 'bizType', key: 'bizType', width: 70, render: (type: string) => { const colors: Record<string, string> = { DIRECT: '#0284C7', CUSTOM: '#7C3AED', RESERVE: '#D97706', REGULAR: '#16A34A' }; return <Tag color={colors[type] || '#8C8C8C'}>{BIZ_TYPE_MAP[type as keyof typeof BIZ_TYPE_MAP] || type}</Tag>; } },
+      { title: '订单来源', dataIndex: 'orderSource', key: 'orderSource', width: 80, render: (src: string) => { const colors: Record<string, string> = { CALL_400: '#16A34A', REQUISITION: '#8C8C8C', YUN_XIAO_TONG: '#0284C7' }; return <Tag color={colors[src] || '#8C8C8C'}>{ORDER_SOURCE_MAP[src as keyof typeof ORDER_SOURCE_MAP] || src}</Tag>; } },
+      { title: '时效等级', dataIndex: 'urgencyLevel', key: 'urgencyLevel', width: 70, render: (level: string) => { const info = URGENCY_MAP[level as keyof typeof URGENCY_MAP]; return <Tag color={info?.color}>{info?.label}</Tag>; } },
+      { title: '总金额', dataIndex: 'totalAmount', key: 'totalAmount', width: 100, align: 'right' as const, sorter: (a, b) => a.totalAmount - b.totalAmount, render: (amount: number) => (<span style={{ fontWeight: 500 }}>¥{amount.toLocaleString()}</span>) },
+      { title: '下单时间', dataIndex: 'createTime', key: 'createTime', width: 145, sorter: (a, b) => a.createTime.localeCompare(b.createTime), render: (t: string) => t.replace('T', ' ').substring(0, 16) },
+      { title: '当前状态', dataIndex: 'status', key: 'status', width: 85, render: (s: OrderStatus) => (<Tag color={ORDER_STATUS_COLOR_MAP[s]}>{ORDER_STATUS_MAP[s]}</Tag>) },
+      { title: '基地来源', dataIndex: 'baseSource', key: 'baseSource', width: 85 },
+      { title: '缺件', dataIndex: 'shortageFlag', key: 'shortageFlag', width: 50, align: 'center' as const, render: (flag: boolean) => flag ? <Tooltip title="有缺件"><ExclamationCircleOutlined style={{ color: '#E11D48', fontSize: 16 }} /></Tooltip> : null },
+      { title: '操作', key: 'actions', fixed: 'right' as const, width: 90, render: (_: unknown, record: OrderDTO) => (<Space size="small"><a onClick={(e) => { e.stopPropagation(); navigate(`/orders/${record.orderNo}`); }} style={{ color: '#FF6B00' }}>查看</a><Dropdown menu={{ items: [{ key: 'audit', label: '审核', icon: <CheckCircleOutlined /> }, { key: 'schedule', label: '排单', icon: <CheckCircleOutlined /> }, { key: 'export', label: '导出', icon: <DownloadOutlined /> }, { key: 'print', label: '打印', icon: <PrinterOutlined /> }, { key: 'expedite', label: '加急', icon: <ThunderboltOutlined /> }] }} trigger={['click']}><a onClick={(e) => e.stopPropagation()}><MoreOutlined /></a></Dropdown></Space>) },
     ];
     return all.filter((col) => visibleColumns.includes(col.key as string));
   }, [navigate, visibleColumns]);
@@ -244,7 +246,10 @@ export default function OrderList() {
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Title level={4} style={{ margin: 0 }}>订单管理</Title>
-        <Button icon={<ReloadOutlined />} onClick={() => setFilters({ orderNo: '', dealerName: '', dateRange: null, orderSources: [], urgencyLevels: [], baseSource: '', shortageOnly: false, orderStatuses: [] })}>重置</Button>
+        <Space>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setNewOrderOpen(true)}>新建订单</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => setFilters({ orderNo: '', dealerName: '', dateRange: null, orderSources: [], urgencyLevels: [], baseSource: '', shortageOnly: false, orderStatuses: [] })}>重置</Button>
+        </Space>
       </div>
 
       {/* ========== 订单配置入口 ========== */}
@@ -271,6 +276,168 @@ export default function OrderList() {
         open={activeDrawer !== null} onClose={() => setActiveDrawer(null)} width={480}
         extra={<Button type="primary" size="small" onClick={() => { message.success('配置已保存'); setActiveDrawer(null); }}>保存配置</Button>}>
         {renderDrawerContent()}
+      </Drawer>
+
+      {/* ========== 新建订单 Drawer ========== */}
+      <Drawer
+        title={<Space><PlusOutlined style={{ color: '#FF6B00' }} /><span>新建订单</span></Space>}
+        open={newOrderOpen}
+        onClose={() => { setNewOrderOpen(false); newOrderForm.resetFields(); }}
+        width={640}
+        extra={
+          <Space>
+            <Button onClick={() => { setNewOrderOpen(false); newOrderForm.resetFields(); }}>取消</Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => {
+              newOrderForm.validateFields().then((values) => {
+                const now = new Date();
+                const orderNo = `OMS${String(now.getFullYear()).substring(2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+                const items = (values.items || []).map((it: any) => ({
+                  skuCode: it.skuCode, skuName: it.skuName,
+                  quantity: it.quantity, unitPrice: it.unitPrice,
+                  subtotal: it.unitPrice * it.quantity, shortageQty: 0,
+                }));
+                const totalAmount = items.reduce((s: number, i: any) => s + i.subtotal, 0);
+                message.success(`订单 ${orderNo} 创建成功`);
+                setNewOrderOpen(false);
+                newOrderForm.resetFields();
+              }).catch(() => message.warning('请完善必填信息'));
+            }}>提交订单</Button>
+          </Space>
+        }
+      >
+        <Form form={newOrderForm} layout="vertical" initialValues={{ bizType: 'REGULAR', orderSource: 'YUN_XIAO_TONG', urgencyLevel: 'NORMAL', items: [{}] }}>
+          <Card title="基本信息" size="small" style={{ marginBottom: 16 }}>
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item name="bizType" label="订单类型" rules={[{ required: true }]}>
+                  <Select options={Object.entries(BIZ_TYPE_MAP).map(([k, v]) => ({ value: k, label: v }))} />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="orderSource" label="订单来源" rules={[{ required: true }]}>
+                  <Select options={Object.entries(ORDER_SOURCE_MAP).map(([k, v]) => ({ value: k, label: v }))} />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="urgencyLevel" label="时效等级" rules={[{ required: true }]}>
+                  <Select options={[{ value: 'NORMAL', label: '普通' }, { value: 'URGENT', label: '紧急' }]} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item name="dealerName" label="经销商" rules={[{ required: true, message: '请选择经销商' }]}>
+                  <Select placeholder="选择经销商" showSearch options={[
+                    { value: '杭州雅迪旗舰店', label: '杭州雅迪旗舰店' },
+                    { value: '南京雅迪体验中心', label: '南京雅迪体验中心' },
+                    { value: '合肥雅迪专卖店', label: '合肥雅迪专卖店' },
+                    { value: '郑州雅迪旗舰店', label: '郑州雅迪旗舰店' },
+                    { value: '武汉雅迪服务中心', label: '武汉雅迪服务中心' },
+                    { value: '长沙雅迪旗舰店', label: '长沙雅迪旗舰店' },
+                    { value: '成都雅迪体验店', label: '成都雅迪体验店' },
+                    { value: '广州雅迪旗舰店', label: '广州雅迪旗舰店' },
+                  ]} />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="baseSource" label="基地来源" rules={[{ required: true, message: '请选择基地' }]}>
+                  <Select placeholder="选择基地" options={['华东基地', '华南基地', '华北基地', '西南基地'].map((b) => ({ value: b, label: b }))} />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="shippingMethod" label="运输方式">
+                  <Select options={[{ value: 'STANDALONE', label: '非随车' }, { value: 'WITH_VEHICLE', label: '随车' }]} />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
+
+          <Card title="收货信息" size="small" style={{ marginBottom: 16 }}>
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item name="receiverName" label="收货人" rules={[{ required: true, message: '请输入收货人' }]}>
+                  <Input placeholder="收货人姓名" />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="receiverPhone" label="联系电话" rules={[{ required: true, message: '请输入电话' }]}>
+                  <Input placeholder="手机号" />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="receiverProvince" label="省份" rules={[{ required: true, message: '请输入省份' }]}>
+                  <Input placeholder="如：浙江省" />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={16}>
+              <Col span={8}>
+                <Form.Item name="receiverCity" label="城市" rules={[{ required: true, message: '请输入城市' }]}>
+                  <Input placeholder="如：杭州市" />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="receiverDistrict" label="区/县" rules={[{ required: true, message: '请输入区县' }]}>
+                  <Input placeholder="如：余杭区" />
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="receiverAddress" label="详细地址" rules={[{ required: true, message: '请输入详细地址' }]}>
+                  <Input placeholder="街道+门牌号" />
+                </Form.Item>
+              </Col>
+            </Row>
+          </Card>
+
+          <Card title="商品明细" size="small" style={{ marginBottom: 16 }}>
+            <Form.List name="items">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map(({ key, name, ...rest }) => (
+                    <Row key={key} gutter={8} style={{ marginBottom: 8 }} align="middle">
+                      <Col span={5}>
+                        <Form.Item name={[name, 'skuCode']} rules={[{ required: true, message: '必填' }]} noStyle>
+                          <Input placeholder="SKU编码" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={6}>
+                        <Form.Item name={[name, 'skuName']} rules={[{ required: true, message: '必填' }]} noStyle>
+                          <Input placeholder="商品名称" />
+                        </Form.Item>
+                      </Col>
+                      <Col span={4}>
+                        <Form.Item name={[name, 'quantity']} rules={[{ required: true, message: '必填' }]} noStyle>
+                          <InputNumber placeholder="数量" min={1} style={{ width: '100%' }} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={5}>
+                        <Form.Item name={[name, 'unitPrice']} rules={[{ required: true, message: '必填' }]} noStyle>
+                          <InputNumber placeholder="单价" min={0} prefix="¥" style={{ width: '100%' }} />
+                        </Form.Item>
+                      </Col>
+                      <Col span={3}>
+                        {fields.length > 1 && (
+                          <Button size="small" danger icon={<DeleteOutlined />} onClick={() => remove(name)} />
+                        )}
+                      </Col>
+                    </Row>
+                  ))}
+                  <Button type="dashed" size="small" icon={<PlusOutlined />} block onClick={() => add({ quantity: 1, unitPrice: 0 })}>
+                    添加商品行
+                  </Button>
+                </>
+              )}
+            </Form.List>
+          </Card>
+
+          <Card size="small" style={{ background: '#FFF3E8', border: '1px solid #FFD6A5' }}>
+            <ul style={{ margin: 0, paddingLeft: 16, fontSize: 13, color: '#FF6B00' }}>
+              <li>新订单创建后状态为「待审核」</li>
+              <li>提交后可在订单列表中查看和审核</li>
+              <li>直发订单不经过仓库履约，供应商直接发货至经销商</li>
+            </ul>
+          </Card>
+        </Form>
       </Drawer>
 
       {/* 状态 Tab */}
@@ -319,7 +486,7 @@ export default function OrderList() {
       <Card>
         <Table rowKey="orderNo" columns={columns} dataSource={filteredOrders}
           rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
-          scroll={{ x: 1400 }} size="middle"
+          scroll={{ x: 1050 }} size="middle"
           pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50', '100'], showTotal: (total, range) => `共 ${total} 条，${range[0]}-${range[1]}` }}
           onRow={(record) => ({ onClick: () => navigate(`/orders/${record.orderNo}`) })} />
       </Card>

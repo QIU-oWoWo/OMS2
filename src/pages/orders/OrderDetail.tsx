@@ -147,10 +147,10 @@ export default function OrderDetail() {
   const customOrder = orderBizType === 'CUSTOM' ? mockCustomOrders.find((c) => c.orderNo === orderNo) : null;
   const call400Order = order.orderSource === 'CALL_400' ? mockCall400Orders.find((c) => c.originOrderNo === orderNo) : null;
   const isSpecialType = orderBizType === 'RESERVE' || orderBizType === 'CUSTOM';
-  const hasAddressChange = displayStatus === 'PENDING_REVIEW' && !!order.addressChangeRequest;
 
   const displayStatus = localStatus || order.status;
   const isPendingReview = displayStatus === 'PENDING_REVIEW';
+  const hasAddressChange = isPendingReview && !!order.addressChangeRequest;
 
   // 订单状态判断（使用 localStatus 覆盖以支持模拟操作）
   const flowNodeIdx = STATUS_TO_FLOW_NODE[displayStatus];
