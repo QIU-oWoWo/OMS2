@@ -41,17 +41,19 @@ export default function InventoryShare() {
   }, [filters]);
 
   const columns: ColumnsType<InventoryShareDTO> = [
-    { title: '共享方经销商', dataIndex: 'fromDealerName', key: 'fromDealerName', width: 150 },
-    { title: 'SKU名称', key: 'skuSummary', width: 140, render: (_: unknown, r: InventoryShareDTO) => r.items.map((i) => <Tag key={i.skuCode} style={{ fontSize: 11, marginBottom: 2 }}>{i.skuName}</Tag>) },
-    { title: '定价', dataIndex: 'totalAmount', key: 'totalAmount', width: 110, align: 'right', sorter: (a, b) => a.totalAmount - b.totalAmount, render: (v: number) => <span style={{ fontWeight: 500 }}>¥{v.toLocaleString()}</span> },
-    { title: '质量认证', key: 'qualityCert', width: 110, align: 'center', render: (_: unknown, r: InventoryShareDTO) => {
+    { title: '共享单号', dataIndex: 'shareNo', key: 'shareNo', width: 160, ellipsis: true, render: (v: string) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{v}</span> },
+    { title: '共享方', dataIndex: 'fromDealerName', key: 'fromDealerName', width: 130, ellipsis: true },
+    { title: '接收方', dataIndex: 'toDealerName', key: 'toDealerName', width: 130, ellipsis: true },
+    { title: 'SKU名称', key: 'skuSummary', width: 130, render: (_: unknown, r: InventoryShareDTO) => r.items.map((i) => <Tag key={i.skuCode} style={{ fontSize: 11, marginBottom: 2 }}>{i.skuName}</Tag>) },
+    { title: '定价', dataIndex: 'totalAmount', key: 'totalAmount', width: 100, align: 'right', sorter: (a, b) => a.totalAmount - b.totalAmount, render: (v: number) => <span style={{ fontWeight: 500 }}>¥{v.toLocaleString()}</span> },
+    { title: '质量认证', key: 'qualityCert', width: 90, align: 'center', render: (_: unknown, r: InventoryShareDTO) => {
       if (r.qualityCertStatus === 'VERIFIED') return <Tag icon={<SafetyCertificateOutlined />} color="success">已认证</Tag>;
       if (r.qualityCertStatus === 'PENDING') return <Tag icon={<ExclamationCircleOutlined />} color="warning">待认证</Tag>;
       return <Tag icon={<CloseCircleOutlined />} color="error">未通过</Tag>;
     }},
-    { title: '共享状态', dataIndex: 'status', key: 'status', width: 90, render: (s: ShareStatus) => { const info = SHARE_STATUS_MAP[s]; return <Tag color={info?.color}>{info?.label}</Tag>; } },
-    { title: '创建时间', dataIndex: 'createTime', key: 'createTime', width: 160, sorter: (a, b) => a.createTime.localeCompare(b.createTime), render: (t: string) => t.replace('T', ' ').substring(0, 16) },
-    { title: '操作', key: 'actions', width: 80, render: (_: unknown, r: InventoryShareDTO) => (<Button size="small" danger icon={<CloseCircleOutlined />} onClick={(e) => { e.stopPropagation(); Modal.confirm({ title: '确认下架', content: `确定要下架共享 ${r.shareNo} 吗？`, okText: '确认', okButtonProps: { danger: true }, onOk: () => message.success('已下架') }); }}>下架</Button>) },
+    { title: '共享状态', dataIndex: 'status', key: 'status', width: 80, render: (s: ShareStatus) => { const info = SHARE_STATUS_MAP[s]; return <Tag color={info?.color}>{info?.label}</Tag>; } },
+    { title: '创建时间', dataIndex: 'createTime', key: 'createTime', width: 145, sorter: (a, b) => a.createTime.localeCompare(b.createTime), render: (t: string) => t.replace('T', ' ').substring(0, 16) },
+    { title: '操作', key: 'actions', width: 70, render: (_: unknown, r: InventoryShareDTO) => (<Button size="small" danger icon={<CloseCircleOutlined />} onClick={(e) => { e.stopPropagation(); Modal.confirm({ title: '确认下架', content: `确定要下架共享 ${r.shareNo} 吗？`, okText: '确认', okButtonProps: { danger: true }, onOk: () => message.success('已下架') }); }}>下架</Button>) },
   ];
 
   return (
@@ -110,7 +112,7 @@ export default function InventoryShare() {
 
       {/* 数据表格 */}
       <Card>
-        <Table rowKey="shareNo" columns={columns} dataSource={filtered} scroll={{ x: 1300 }} size="middle"
+        <Table rowKey="shareNo" columns={columns} dataSource={filtered} size="middle"
           pagination={{ defaultPageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
           onRow={(r) => ({ onClick: () => setDetailDrawer(r) })} />
       </Card>

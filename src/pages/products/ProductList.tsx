@@ -49,6 +49,15 @@ const DEALER_LIST = [
   { id: 'DLR-104', name: '洛阳二网经销商D', tier: '二网' },
 ];
 
+// ========== 一网→二网经销商对应关系 ==========
+const DEALER_TIER_MAP: Record<string, { name: string; tier2Dealers: { id: string; name: string }[] }> = {
+  'DLR-001': { name: '杭州雅迪旗舰店', tier2Dealers: [{ id: 'DLR-101', name: '绍兴二网经销商A' }] },
+  'DLR-002': { name: '南京雅迪体验中心', tier2Dealers: [{ id: 'DLR-102', name: '镇江二网经销商B' }] },
+  'DLR-003': { name: '合肥雅迪专卖店', tier2Dealers: [{ id: 'DLR-103', name: '芜湖二网经销商C' }] },
+  'DLR-004': { name: '郑州雅迪旗舰店', tier2Dealers: [{ id: 'DLR-104', name: '洛阳二网经销商D' }] },
+  'DLR-005': { name: '武汉雅迪服务中心', tier2Dealers: [] },
+};
+
 const CATEGORIES = [
   '制动系统 > 刹车片', '动力系统 > 滤清器', '传动系统 > 链条',
   '电气系统 > 蓄电池', '动力系统 > 电机', '电气系统 > 控制器',
@@ -58,7 +67,7 @@ const CATEGORIES = [
 export default function ProductList() {
   const navigate = useNavigate();
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
-  const [visibleCols, setVisibleCols] = useState(ALL_COLS.map((c) => c.key));
+  const [visibleCols, setVisibleCols] = useState(ALL_COLS.map((c) => c.key).filter((k) => k !== 'specification' && k !== 'unit'));
   const [activeDrawer, setActiveDrawer] = useState<RuleKey | null>(null);
   const [filters, setFilters] = useState({
     skuCode: '', skuName: '', category: '', statuses: [] as string[], baseSource: '', tags: [] as string[],
@@ -104,6 +113,7 @@ export default function ProductList() {
     hiddenCategories: ['传动系统 > 链条', '底盘系统 > 减震器'] as string[],
     tier2Whitelist: ['DLR-101', 'DLR-103'] as string[],
     tier1Blacklist: [] as string[],
+    dealerVisibilityRules: { 'DLR-001': ['电气系统 > 蓄电池'] } as Record<string, string[]>,
   });
 
   // 置顶商品
@@ -146,16 +156,16 @@ export default function ProductList() {
 
   const columns: ColumnsType<ProductDTO> = useMemo(() => {
     const all: ColumnsType<ProductDTO> = [
-      { title: 'SKU编码', dataIndex: 'skuCode', key: 'skuCode', width: 140, render: (code: string) => (<a onClick={(e) => { e.stopPropagation(); navigate(`/products/${code}`); }} style={{ color: '#FF6B00', fontWeight: 500, fontFamily: 'monospace' }}>{code}</a>) },
-      { title: '商品名称', dataIndex: 'skuName', key: 'skuName', width: 240, ellipsis: true },
-      { title: '商品分类', dataIndex: 'categoryPath', key: 'categoryPath', width: 180, ellipsis: true },
-      { title: '规格型号', dataIndex: 'specification', key: 'specification', width: 180, ellipsis: true },
-      { title: '单位', dataIndex: 'unit', key: 'unit', width: 60, align: 'center' },
-      { title: '基准价', dataIndex: 'basePrice', key: 'basePrice', width: 110, align: 'right', sorter: (a, b) => a.basePrice - b.basePrice, render: (v: number) => <span style={{ fontWeight: 500 }}>¥{v.toLocaleString()}</span> },
-      { title: '基地来源', dataIndex: 'baseSource', key: 'baseSource', width: 100, sorter: (a, b) => a.baseSource.localeCompare(b.baseSource) },
-      { title: '适配车型数', dataIndex: 'vehicleModelCount', key: 'vehicleModelCount', width: 100, align: 'center', sorter: (a, b) => a.vehicleModelCount - b.vehicleModelCount },
-      { title: '状态', dataIndex: 'status', key: 'status', width: 70, render: (s: ProductStatus) => { const info = PRODUCT_STATUS_MAP[s]; return <Tag color={info?.color}>{info?.label}</Tag>; } },
-      { title: '标签', dataIndex: 'tags', key: 'tags', width: 200, render: (tags: ProductTag[], record: ProductDTO) => {
+      { title: 'SKU编码', dataIndex: 'skuCode', key: 'skuCode', width: 130, render: (code: string) => (<a onClick={(e) => { e.stopPropagation(); navigate(`/products/${code}`); }} style={{ color: '#FF6B00', fontWeight: 500, fontFamily: 'monospace' }}>{code}</a>) },
+      { title: '商品名称', dataIndex: 'skuName', key: 'skuName', width: 190, ellipsis: true },
+      { title: '商品分类', dataIndex: 'categoryPath', key: 'categoryPath', width: 150, ellipsis: true },
+      { title: '规格型号', dataIndex: 'specification', key: 'specification', width: 150, ellipsis: true },
+      { title: '单位', dataIndex: 'unit', key: 'unit', width: 50, align: 'center' },
+      { title: '基准价', dataIndex: 'basePrice', key: 'basePrice', width: 95, align: 'right', sorter: (a, b) => a.basePrice - b.basePrice, render: (v: number) => <span style={{ fontWeight: 500 }}>¥{v.toLocaleString()}</span> },
+      { title: '基地来源', dataIndex: 'baseSource', key: 'baseSource', width: 85, sorter: (a, b) => a.baseSource.localeCompare(b.baseSource) },
+      { title: '适配车型数', dataIndex: 'vehicleModelCount', key: 'vehicleModelCount', width: 85, align: 'center', sorter: (a, b) => a.vehicleModelCount - b.vehicleModelCount },
+      { title: '状态', dataIndex: 'status', key: 'status', width: 60, render: (s: ProductStatus) => { const info = PRODUCT_STATUS_MAP[s]; return <Tag color={info?.color}>{info?.label}</Tag>; } },
+      { title: '标签', dataIndex: 'tags', key: 'tags', width: 170, render: (tags: ProductTag[], record: ProductDTO) => {
         const displayTags = getProductTags(record.skuCode, tags);
         const availableTags = (Object.keys(PRODUCT_TAG_MAP) as ProductTag[]).filter((t) => t !== 'NONE');
         const addableTags = availableTags.filter((t) => !displayTags.includes(t));
@@ -198,8 +208,8 @@ export default function ProductList() {
           </Space>
         );
       } },
-      { title: '更新时间', dataIndex: 'updateTime', key: 'updateTime', width: 160, sorter: (a, b) => a.updateTime.localeCompare(b.updateTime), render: (t: string) => t.replace('T', ' ').substring(0, 16) },
-      { title: '操作', key: 'actions', fixed: 'right' as const, width: 100, render: (_: unknown, record: ProductDTO) => (<a onClick={(e) => { e.stopPropagation(); navigate(`/products/${record.skuCode}/edit`); }} style={{ color: '#FF6B00' }}>编辑</a>) },
+      { title: '更新时间', dataIndex: 'updateTime', key: 'updateTime', width: 140, sorter: (a, b) => a.updateTime.localeCompare(b.updateTime), render: (t: string) => t.replace('T', ' ').substring(0, 16) },
+      { title: '操作', key: 'actions', fixed: 'right' as const, width: 70, render: (_: unknown, record: ProductDTO) => (<a onClick={(e) => { e.stopPropagation(); navigate(`/products/${record.skuCode}/edit`); }} style={{ color: '#FF6B00' }}>编辑</a>) },
     ];
     return all.filter((c) => visibleCols.includes(c.key as string));
   }, [navigate, visibleCols]);
@@ -279,9 +289,81 @@ export default function ProductList() {
                 <Select mode="multiple" style={{ width: '100%' }} value={visibility.tier1Blacklist} onChange={(v) => setVisibility((p) => ({ ...p, tier1Blacklist: v }))}
                   options={DEALER_LIST.filter((d) => d.tier === '一网').map((d) => ({ value: d.id, label: d.name }))} />
               </Panel>
+              <Panel header={<Text strong>一网经销商可见性配置（联动二网）</Text>} key="region">
+                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
+                  选择需要单独配置的一网经销商，配置其不可见品类后将同步联动对应二网经销商
+                </Text>
+                <Select
+                  style={{ width: '100%', marginBottom: 12 }}
+                  placeholder="选择一网经销商以添加可见性配置"
+                  value={undefined}
+                  onChange={(dealerId: string) => {
+                    if (!visibility.dealerVisibilityRules[dealerId]) {
+                      setVisibility((p) => ({
+                        ...p,
+                        dealerVisibilityRules: { ...p.dealerVisibilityRules, [dealerId]: [] },
+                      }));
+                    }
+                  }}
+                  options={Object.entries(DEALER_TIER_MAP)
+                    .filter(([id]) => !visibility.dealerVisibilityRules[id])
+                    .map(([id, info]) => ({ value: id, label: info.name }))}
+                  showSearch
+                  filterOption={(input, option) => (option?.label as string)?.includes(input)}
+                />
+                {Object.keys(visibility.dealerVisibilityRules).length === 0 ? (
+                  <Text type="secondary" style={{ fontSize: 12 }}>暂未配置，所有一网经销商默认全部品类可见</Text>
+                ) : (
+                  Object.entries(visibility.dealerVisibilityRules).map(([dealerId, hiddenCats]) => {
+                    const dealerInfo = DEALER_TIER_MAP[dealerId];
+                    return (
+                      <Card key={dealerId} size="small" style={{ marginBottom: 10, borderColor: '#FFD6A5' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <Space size={4}>
+                            <Tag color="#FF6B00">{dealerInfo?.name || dealerId}</Tag>
+                            <Text type="secondary" style={{ fontSize: 11 }}>
+                              {hiddenCats.length > 0 ? `隐藏 ${hiddenCats.length} 个品类` : '全部可见'}
+                            </Text>
+                          </Space>
+                          <Button
+                            type="link" size="small" danger
+                            onClick={() => {
+                              const next = { ...visibility.dealerVisibilityRules };
+                              delete next[dealerId];
+                              setVisibility((p) => ({ ...p, dealerVisibilityRules: next }));
+                            }}
+                          >
+                            移除
+                          </Button>
+                        </div>
+                        {dealerInfo?.tier2Dealers.length ? (
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>
+                            关联二网经销商：{dealerInfo.tier2Dealers.map((d) => d.name).join('、')}
+                          </Text>
+                        ) : (
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>暂无关联二网经销商</Text>
+                        )}
+                        <Select
+                          mode="multiple"
+                          style={{ width: '100%' }}
+                          placeholder="选择该经销商不可见的品类"
+                          value={hiddenCats}
+                          onChange={(v) => setVisibility((p) => ({
+                            ...p,
+                            dealerVisibilityRules: { ...p.dealerVisibilityRules, [dealerId]: v },
+                          }))}
+                          options={CATEGORIES.map((c) => ({ value: c, label: c }))}
+                          maxTagCount={2}
+                          allowClear
+                        />
+                      </Card>
+                    );
+                  })
+                )}
+              </Panel>
             </Collapse>
             <Divider style={{ margin: '16px 0' }} />
-            <Alert message="二网经销商默认不可见指定品类，白名单中的二网经销商和所有一网经销商正常可见" type="info" showIcon />
+            <Alert message="二网经销商默认不可见指定品类，白名单中的二网经销商和所有一网经销商正常可见；一网经销商可见性配置将联动其对应二网经销商" type="info" showIcon />
           </div>
         );
 
@@ -479,7 +561,7 @@ export default function ProductList() {
       <Card>
         <Table rowKey="skuCode" columns={columns} dataSource={filtered}
           rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
-          scroll={{ x: 1400 }} size="middle"
+          scroll={{ x: 1100 }} size="middle"
           pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50', '100'], showTotal: (total) => `共 ${total} 条` }}
           onRow={(r) => ({ onClick: () => navigate(`/products/${r.skuCode}`) })} />
           {/* Note: Row click goes to ProductDetail, edit button in detail page */}
